@@ -491,7 +491,12 @@ object AppContainer {
     private fun primeProxySetting() {
         val initialBootstrapSettings = readBootstrapSettingsSnapshotSync(application)
         DynamicProxySelector.bypassProxy = initialBootstrapSettings.bypassProxy
-        YouTubeFeatureGate.update(initialBootstrapSettings.youtubeEnabled)
+        val youtubeEnabled = if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.youTubePrewarmDisabled) {
+            false
+        } else {
+            initialBootstrapSettings.youtubeEnabled
+        }
+        YouTubeFeatureGate.update(youtubeEnabled)
         ManagedDownloadStorage.primeSettings(
             directoryUri = initialBootstrapSettings.downloadDirectoryUri,
             directoryLabel = initialBootstrapSettings.downloadDirectoryLabel,
@@ -575,9 +580,14 @@ object AppContainer {
 
         settingsRepo.youtubeEnabledFlow
             .onEach { enabled ->
+                val resolvedEnabled = if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.youTubePrewarmDisabled) {
+                    false
+                } else {
+                    enabled
+                }
                 val wasEnabled = YouTubeFeatureGate.isEnabled()
-                YouTubeFeatureGate.update(enabled)
-                if (wasEnabled && !enabled) {
+                YouTubeFeatureGate.update(resolvedEnabled)
+                if (wasEnabled && !resolvedEnabled) {
                     YouTubeAuthRotationWorker.cancelPeriodicRotation(application)
                     if (youtubeMusicClientDelegate.isInitialized()) {
                         youtubeMusicClientDelegate.value.clearBootstrapCache()
@@ -590,7 +600,7 @@ object AppContainer {
                     }
                     AudioDownloadManager.cancelActiveYouTubeDownloads()
                     cancelYouTubeCalls()
-                } else if (!wasEnabled && enabled) {
+                } else if (!wasEnabled && resolvedEnabled) {
                     YouTubeAuthRotationWorker.schedulePeriodicRotation(application)
                     warmYouTubePlaybackOnAppStart()
                 }
@@ -599,6 +609,9 @@ object AppContainer {
     }
 
     private fun warmYouTubePlaybackOnAppStart() {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.youTubePrewarmDisabled) {
+            return
+        }
         if (!YouTubeFeatureGate.isEnabled()) {
             return
         }

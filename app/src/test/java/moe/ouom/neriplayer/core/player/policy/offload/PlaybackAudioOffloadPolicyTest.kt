@@ -50,6 +50,16 @@ class PlaybackAudioOffloadPolicyTest {
     }
 
     @Test
+    fun `classical low power allows bilibili streams to be offload eligible`() {
+        assertFalse(
+            resolveRequiresPcmAudioProcessing(
+                audioSource = PlaybackAudioSource.BILIBILI,
+                preferClassicalOffload = true
+            )
+        )
+    }
+
+    @Test
     fun `disabling reactive output during playback does not request a pipeline rebuild`() {
         assertFalse(
             shouldUpdateAudioOffloadForReactiveChange(
@@ -83,6 +93,7 @@ class PlaybackAudioOffloadPolicyTest {
         audioReactiveActive: Boolean = false,
         audioSource: PlaybackAudioSource? = null,
         listenTogetherPlaybackRate: Float = 1f,
+        preferClassicalOffload: Boolean = false,
     ): Boolean {
         return requiresPcmAudioProcessing(
             usbExclusivePlaybackEnabled = usbExclusivePlaybackEnabled,
@@ -96,6 +107,7 @@ class PlaybackAudioOffloadPolicyTest {
             audioReactiveActive = audioReactiveActive,
             audioSource = audioSource,
             listenTogetherPlaybackRate = listenTogetherPlaybackRate,
+            preferClassicalOffload = preferClassicalOffload,
         )
     }
 }
