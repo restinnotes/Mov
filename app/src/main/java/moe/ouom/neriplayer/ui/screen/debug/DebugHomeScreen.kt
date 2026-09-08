@@ -189,6 +189,8 @@ fun DebugHomeScreen(
             supportingContent = { Text(stringResource(R.string.debug_select_platform)) },
         )
 
+        LowPowerDiagnosticsCard()
+
         Card(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)

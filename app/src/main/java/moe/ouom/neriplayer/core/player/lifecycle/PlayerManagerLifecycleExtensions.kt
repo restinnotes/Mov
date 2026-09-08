@@ -489,6 +489,13 @@ internal fun PlayerManager.initializeImpl(
                 format: Format,
                 decoderReuseEvaluation: DecoderReuseEvaluation?
             ) {
+                moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onAudioInputFormat(
+                    mimeType = format.sampleMimeType,
+                    codecs = format.codecs,
+                    sampleRate = format.sampleRate,
+                    channelCount = format.channelCount,
+                    bitrate = format.bitrate
+                )
                 NPLogger.i(
                     "NERI-PlaybackDecoder",
                     "audio input format: sampleMimeType=${format.sampleMimeType}, " +
@@ -504,6 +511,7 @@ internal fun PlayerManager.initializeImpl(
                 initializedTimestampMs: Long,
                 initializationDurationMs: Long
             ) {
+                moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onAudioDecoderInitialized(decoderName)
                 NPLogger.i(
                     "NERI-PlaybackDecoder",
                     "audio decoder initialized: name=$decoderName, " +
@@ -586,6 +594,7 @@ internal fun PlayerManager.initializeImpl(
         updateAudioOffloadPreferences("player_initialize")
         player.addAudioOffloadListener(object : ExoPlayer.AudioOffloadListener {
             override fun onOffloadedPlayback(isOffloadedPlayback: Boolean) {
+                moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onOffloadedPlaybackChanged(isOffloadedPlayback)
                 NPLogger.i(
                     "NERI-PlayerManager",
                     "audio offload playback changed: active=$isOffloadedPlayback"
@@ -593,6 +602,7 @@ internal fun PlayerManager.initializeImpl(
             }
 
             override fun onSleepingForOffloadChanged(isSleepingForOffload: Boolean) {
+                moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onSleepingForOffloadChanged(isSleepingForOffload)
                 NPLogger.d(
                     "NERI-PlayerManager",
                     "audio offload scheduling sleep changed: sleeping=$isSleepingForOffload"
@@ -1085,116 +1095,147 @@ internal fun PlayerManager.initializeImpl(
                 }
             }
         }
-        ioScope.launch {
-            settingsRepo.lyriconEnabledFlow.collect { enabled ->
-                lyriconEnabled = enabled
-                LyriconManager.setEnabled(enabled)
-                if (enabled) {
-                    if (!LyriconManager.isInitialized()) {
-                        LyriconManager.initialize(application)
+        if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyriconDisabled) {
+            ioScope.launch {
+                settingsRepo.lyriconEnabledFlow.collect { enabled ->
+                    lyriconEnabled = enabled
+                    LyriconManager.setEnabled(enabled)
+                    if (enabled) {
+                        if (!LyriconManager.isInitialized()) {
+                            LyriconManager.initialize(application)
+                        }
+                        syncLyriconSong(_currentSongFlow.value)
+                        LyriconManager.setPlaybackState(_isPlayingFlow.value)
+                        if (_isPlayingFlow.value) {
+                            LyriconManager.setPosition(_playbackPositionMs.value)
+                        }
+                    } else {
+                        cancelLyriconUpdate()
                     }
-                    syncLyriconSong(_currentSongFlow.value)
-                    LyriconManager.setPlaybackState(_isPlayingFlow.value)
-                    if (_isPlayingFlow.value) {
-                        LyriconManager.setPosition(_playbackPositionMs.value)
-                    }
-                } else {
-                    cancelLyriconUpdate()
                 }
             }
         }
-        ioScope.launch {
-            settingsRepo.amllLyricsEnabledFlow.collect { enabled ->
-                val changed = amllLyricsEnabled != enabled
-                amllLyricsEnabled = enabled
-                if (changed) {
-                    ytMusicLyricsCache.evictAll()
-                    PlayerLyricsProvider.clearAmllLyricsCache()
+        if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) {
+            ioScope.launch {
+                settingsRepo.amllLyricsEnabledFlow.collect { enabled ->
+                    val changed = amllLyricsEnabled != enabled
+                    amllLyricsEnabled = enabled
+                    if (changed) {
+                        ytMusicLyricsCache.evictAll()
+                        PlayerLyricsProvider.clearAmllLyricsCache()
+                        syncExternalBluetoothLyrics(_currentSongFlow.value)
+                    }
+                }
+            }
+            ioScope.launch {
+                settingsRepo.statusBarLyricsEnabledFlow.collect { enabled ->
+                    statusBarLyricsEnable = enabled
                     syncExternalBluetoothLyrics(_currentSongFlow.value)
                 }
             }
-        }
-        ioScope.launch {
-            settingsRepo.statusBarLyricsEnabledFlow.collect { enabled ->
-                statusBarLyricsEnable = enabled
-                syncExternalBluetoothLyrics(_currentSongFlow.value)
-            }
-        }
-        ioScope.launch {
-            settingsRepo.externalBluetoothLyricsEnabledFlow.collect { enabled ->
-                externalBluetoothLyricsEnabled = enabled
-                syncExternalBluetoothLyrics(_currentSongFlow.value)
-            }
-        }
-        ioScope.launch {
-            settingsRepo.externalBluetoothTranslationEnabledFlow.collect { enabled ->
-                externalBluetoothTranslationEnabled = enabled
-                syncExternalTranslatedLyrics(_currentSongFlow.value)
-            }
-        }
-        ioScope.launch {
-            settingsRepo.dynamicIslandLyricsEnabledFlow.collect { enabled ->
-                dynamicIslandLyricsEnabled = enabled
-                syncExternalBluetoothLyrics(_currentSongFlow.value)
-            }
-        }
-        ioScope.launch {
-            settingsRepo
-                .settingFlow(AutoSettingsSchema.general.biliSkipSegmentPromptEnabled)
-                .collect { enabled ->
-                    biliSkipSegmentPromptEnabled = enabled
-                }
-        }
-        FloatingLyricsOverlayManager.setPositionChangeListener { positionX, positionY, isLandscape ->
             ioScope.launch {
-                settingsRepo.setFloatingLyricsPosition(positionX, positionY, isLandscape)
+                settingsRepo.externalBluetoothLyricsEnabledFlow.collect { enabled ->
+                    externalBluetoothLyricsEnabled = enabled
+                    syncExternalBluetoothLyrics(_currentSongFlow.value)
+                }
             }
-        }
-        ioScope.launch {
-            settingsRepo.floatingLyricsPreferencesFlow.collect { preferences ->
-                val normalized = preferences.normalized()
-                val floatingLyricsEnabledChanged = floatingLyricsEnabled != normalized.enabled
-                val showTranslationChanged = floatingLyricsShowTranslation != normalized.showTranslation
-                floatingLyricsEnabled = normalized.enabled
-                floatingLyricsShowTranslation = normalized.showTranslation
-                FloatingLyricsOverlayManager.updatePreferences(normalized)
-                when {
-                    floatingLyricsEnabledChanged -> syncExternalBluetoothLyrics(_currentSongFlow.value)
-                    showTranslationChanged -> syncExternalTranslatedLyrics(_currentSongFlow.value)
+            ioScope.launch {
+                settingsRepo.externalBluetoothTranslationEnabledFlow.collect { enabled ->
+                    externalBluetoothTranslationEnabled = enabled
+                    syncExternalTranslatedLyrics(_currentSongFlow.value)
+                }
+            }
+            ioScope.launch {
+                settingsRepo.dynamicIslandLyricsEnabledFlow.collect { enabled ->
+                    dynamicIslandLyricsEnabled = enabled
+                    syncExternalBluetoothLyrics(_currentSongFlow.value)
+                }
+            }
+            FloatingLyricsOverlayManager.setPositionChangeListener { positionX, positionY, isLandscape ->
+                ioScope.launch {
+                    settingsRepo.setFloatingLyricsPosition(positionX, positionY, isLandscape)
+                }
+            }
+            ioScope.launch {
+                settingsRepo.floatingLyricsPreferencesFlow.collect { preferences ->
+                    val normalized = preferences.normalized()
+                    val floatingLyricsEnabledChanged = floatingLyricsEnabled != normalized.enabled
+                    val showTranslationChanged = floatingLyricsShowTranslation != normalized.showTranslation
+                    floatingLyricsEnabled = normalized.enabled
+                    floatingLyricsShowTranslation = normalized.showTranslation
+                    FloatingLyricsOverlayManager.updatePreferences(normalized)
+                    when {
+                        floatingLyricsEnabledChanged -> syncExternalBluetoothLyrics(_currentSongFlow.value)
+                        showTranslationChanged -> syncExternalTranslatedLyrics(_currentSongFlow.value)
+                    }
+                }
+            }
+            mainScope.launch {
+                _isPlayingFlow.collect { isPlaying ->
+                    FloatingLyricsOverlayManager.updatePlaybackState(isPlaying)
+                }
+            }
+            mainScope.launch {
+                combine(
+                    externalBluetoothLyricLineFlow,
+                    floatingTranslatedLyricLineFlow,
+                    currentSongFlow
+                ) { lyricLine, translatedLine, currentSong ->
+                    Triple(lyricLine, translatedLine, currentSong)
+                }.collect { (lyricLine, translatedLine, currentSong) ->
+                    FloatingLyricsOverlayManager.updateContent(
+                        line = lyricLine.takeIf { currentSong != null },
+                        translation = translatedLine.takeIf { currentSong != null }
+                    )
+                }
+            }
+            ioScope.launch {
+                settingsRepo.cloudMusicLyricDefaultOffsetMsFlow.collect { offsetMs ->
+                    cloudMusicLyricDefaultOffsetMs = offsetMs
+                    updateExternalBluetoothLyricLine(_playbackPositionMs.value)
+                    updateLyriconLyricOffset()
+                }
+            }
+            ioScope.launch {
+                settingsRepo.qqMusicLyricDefaultOffsetMsFlow.collect { offsetMs ->
+                    qqMusicLyricDefaultOffsetMs = offsetMs
+                    updateExternalBluetoothLyricLine(_playbackPositionMs.value)
+                    updateLyriconLyricOffset()
                 }
             }
         }
         mainScope.launch {
-            _isPlayingFlow.collect { isPlaying ->
-                FloatingLyricsOverlayManager.updatePlaybackState(isPlaying)
+            _currentPlaybackAudioInfo.collect { info ->
+                if (info != null) {
+                    moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onSourceInfoChanged(
+                        source = info.source.name,
+                        mimeType = info.mimeType,
+                        codec = info.codecLabel,
+                        sampleRateHz = info.sampleRateHz,
+                        bitrateKbps = info.bitrateKbps,
+                        channelCount = info.channelCount
+                    )
+                } else {
+                    moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onSourceInfoChanged(
+                        source = "None",
+                        mimeType = "-",
+                        codec = "-",
+                        sampleRateHz = null,
+                        bitrateKbps = null,
+                        channelCount = null
+                    )
+                }
             }
         }
         mainScope.launch {
-            combine(
-                externalBluetoothLyricLineFlow,
-                floatingTranslatedLyricLineFlow,
-                currentSongFlow
-            ) { lyricLine, translatedLine, currentSong ->
-                Triple(lyricLine, translatedLine, currentSong)
-            }.collect { (lyricLine, translatedLine, currentSong) ->
-                FloatingLyricsOverlayManager.updateContent(
-                    line = lyricLine.takeIf { currentSong != null },
-                    translation = translatedLine.takeIf { currentSong != null }
+            playbackSoundStateFlow.collect { state ->
+                val hasEffects = state.equalizerEnabled ||
+                    state.loudnessGainMb != 0 ||
+                    state.volumeNormalizationEnabled
+                moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onSoundConfigChanged(
+                    speed = state.speed,
+                    hasEffects = hasEffects
                 )
-            }
-        }
-        ioScope.launch {
-            settingsRepo.cloudMusicLyricDefaultOffsetMsFlow.collect { offsetMs ->
-                cloudMusicLyricDefaultOffsetMs = offsetMs
-                updateExternalBluetoothLyricLine(_playbackPositionMs.value)
-                updateLyriconLyricOffset()
-            }
-        }
-        ioScope.launch {
-            settingsRepo.qqMusicLyricDefaultOffsetMsFlow.collect { offsetMs ->
-                qqMusicLyricDefaultOffsetMs = offsetMs
-                updateExternalBluetoothLyricLine(_playbackPositionMs.value)
-                updateLyriconLyricOffset()
             }
         }
         ioScope.launch {
@@ -1552,6 +1593,11 @@ internal fun PlayerManager.updateAudioOffloadPreferences(reason: String) {
         .buildUpon()
         .setAudioOffloadPreferences(audioOffload)
         .build()
+    moe.ouom.neriplayer.core.classical.LowPowerDiagnostics.onOffloadPreferencesUpdated(
+        offloadRequested = !requiresPcmProcessing,
+        offloadEligible = !requiresPcmProcessing,
+        reason = reason
+    )
     NPLogger.i(
         "NERI-PlayerManager",
         "audio offload preference updated: enabled=${!requiresPcmProcessing} reason=$reason"
