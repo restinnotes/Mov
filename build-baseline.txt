@@ -1,0 +1,38 @@
+NeriPlayer-Classical upstream baseline (unmodified)
+==================================================
+upstream repo: https://github.com/cwuom/NeriPlayer
+upstream commit: ac7bdea460b84a25e9b6feb1c66b2592360202f1
+branch: classical-low-power (created at upstream commit, no code changes yet)
+submodules:
+  np-submodule/NeriPlayer-LTW 31d55c60cc7417f5e0592803550eb751345d17b1
+  np-submodule/accompanist-lyrics-core 825661a10101b6b17cdcf8f39e0d5a12ff8d21fd
+  np-submodule/accompanist-lyrics-ui d844e105bfb49104e1eabd03f700f26f492140e2
+  np-submodule/miuix 48bd198a60d74806ab7d0b2d74ff2d3441f29968
+
+baseline build command:
+  .\gradlew.bat :app:assembleDebug --stacktrace
+baseline build result: SUCCESS
+APK path: D:\NeriPlayer-Classical\app\build\outputs\apk\debug\app-debug.apk
+APK size bytes: 52968810
+APK SHA256: 3EBBCF72F883FCDAF8A62CBF2231E56E6386F771F52B5F2D0D153CCAD3087758
+APK mtime UTC: 2026-09-08T21:20:46.1688815Z
+build time: first full build on 2026-09-08, completed 21:20:46 UTC; wall duration not separately timed (includes first-run Gradle 9.4.1 download + SDK package installs). Incremental rebuilds will be timed from here.
+
+toolchain:
+  Java: 17.0.20.1 Temurin (D:\Android\jdk17\current), JAVA_HOME=D:\Android\jdk17\current
+  Gradle wrapper: 9.4.1
+  AGP: 9.2.1
+  Kotlin: 2.4.10 (JVM target 17)
+  compileSdk 37 / targetSdk 36 / minSdk 28
+  Android SDK root: D:\Android\Sdk
+  platform: platforms;android-37.0
+  build-tools: 37.0.0 (also auto-installed 36.0.0 by AGP dependency resolution)
+  platform-tools: 37.0.1 (adb 1.0.41, version 37.0.1-15733141)
+  NDK: 27.0.12077973
+  CMake: project requests 3.22.1 in app/build.gradle.kts; installed cmake;3.22.1 and cmake;3.30.3 (3.30.3 satisfies CONTRIBUTING "3.28.0+"; build uses 3.22.1 per module script)
+  Media3: exoplayer 1.10.1, datasource 1.10.1, okhttp datasource 1.10.1
+  local.properties: sdk.dir=D\:\\Android\\Sdk (gitignored, not committed)
+
+notes:
+- No business code modified for baseline. Only local.properties (ignored) was created for SDK path.
+- git status at baseline: clean on classical-low-power (ignoring local.properties/build outputs).
