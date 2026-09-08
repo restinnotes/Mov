@@ -21,7 +21,8 @@ local.properties
 /.report/
 /.ck/
 /.tmp/
-/tools/
+/tools/*
+!/tools/power-test.ps1
 /.kotlin/
 demo
 .idea
@@ -43,3 +44,7 @@ AGENTS.md
 /ksp-annotations/build/
 /ksp-processor/build/
 /docs-private/
+/.signing/
+/dist/
+/power-results/
+

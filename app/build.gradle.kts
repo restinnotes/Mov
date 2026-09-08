@@ -2,6 +2,7 @@
 
 import com.android.build.api.variant.FilterConfiguration
 import org.gradle.api.tasks.testing.Test
+import java.util.Properties
 import java.util.UUID
 
 plugins {
@@ -21,11 +22,28 @@ val allowUnsignedRelease =
     (project.findProperty("allowUnsignedRelease") as String?)?.toBoolean() == true ||
         isGithubPullRequest ||
         isIdeBuild
-val releaseKeystorePath = project.findProperty("KEYSTORE_FILE") as String? ?: "neri.jks"
-val releaseKeystoreFile = project.file(releaseKeystorePath)
-val releaseStorePassword = project.findProperty("KEYSTORE_PASSWORD") as String?
-val releaseKeyAlias = project.findProperty("KEY_ALIAS") as String? ?: "key0"
-val releaseKeyPassword = project.findProperty("KEY_PASSWORD") as String?
+val localSigningFile = File(rootDir, ".signing/signing.properties")
+val localSigningProperties = Properties().apply {
+    if (localSigningFile.exists()) {
+        localSigningFile.inputStream().use { stream ->
+            load(stream)
+        }
+    }
+}
+val releaseKeystoreFile = File(rootDir, ".signing/neri-classical.jks").takeIf { it.exists() }
+    ?: project.file(
+        (project.findProperty("KEYSTORE_FILE") as String?)
+            ?: localSigningProperties.getProperty("KEYSTORE_FILE")
+            ?: "neri.jks"
+    )
+val releaseKeystorePath = releaseKeystoreFile.absolutePath
+val releaseStorePassword = (project.findProperty("KEYSTORE_PASSWORD") as String?)
+    ?: localSigningProperties.getProperty("KEYSTORE_PASSWORD")
+val releaseKeyAlias = (project.findProperty("KEY_ALIAS") as String?)
+    ?: localSigningProperties.getProperty("KEY_ALIAS")
+    ?: "key0"
+val releaseKeyPassword = (project.findProperty("KEY_PASSWORD") as String?)
+    ?: localSigningProperties.getProperty("KEY_PASSWORD")
 val releaseSigningReady = releaseKeystoreFile.exists() &&
     !releaseStorePassword.isNullOrBlank() &&
     releaseKeyAlias.isNotBlank() &&
@@ -84,6 +102,23 @@ android {
                     "-DCMAKE_SHARED_LINKER_FLAGS=-Wl,-z,max-page-size=16384"
                 )
             }
+        }
+    }
+
+    // Classical low-power fork: `official` preserves upstream behavior untouched,
+    // `classical` enables CLASSICAL_LOW_POWER (see core/classical/ClassicalLowPower.kt).
+    // FileProvider authorities use ${applicationId}, so the suffix keeps them legal.
+    flavorDimensions += "dist"
+    productFlavors {
+        create("official") {
+            dimension = "dist"
+            buildConfigField("boolean", "CLASSICAL_LOW_POWER", "false")
+        }
+        create("classical") {
+            dimension = "dist"
+            applicationIdSuffix = ".classical"
+            versionNameSuffix = "-classical"
+            buildConfigField("boolean", "CLASSICAL_LOW_POWER", "true")
         }
     }
 
@@ -238,7 +273,9 @@ androidComponents {
                 ?: ""
             output.outputFileName.set(
                 output.versionName.orElse("dev").map { versionName ->
-                    "NeriPlayer-${versionName}${abiSuffix}.apk"
+                    val prefix =
+                        if (variant.flavorName == "classical") "NeriClassical" else "NeriPlayer"
+                    "${prefix}-${versionName}${abiSuffix}.apk"
                 }
             )
         }
