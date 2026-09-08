@@ -112,6 +112,7 @@ fun WaveformSlider(
 
     val animatedAmplitude by animateFloatAsState(
         targetValue = if (
+            !moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled &&
             enabled && isPlaying && !isPlaybackWaiting && !isDragging
         ) WAVE_AMPLITUDE else 0f,
         animationSpec = tween(durationMillis = 500, easing = LinearEasing),
@@ -120,7 +121,8 @@ fun WaveformSlider(
 
     var phase by remember { mutableFloatStateOf(0f) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    val animationsEnabled = ValueAnimator.areAnimatorsEnabled()
+    val animationsEnabled = ValueAnimator.areAnimatorsEnabled() &&
+        !moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled
     val isWaitingPulseAnimating = animationsEnabled && isPlaybackWaiting && !isDragging
     val isWaveAnimating =
         animationsEnabled && enabled && isPlaying && !isPlaybackWaiting && !isDragging

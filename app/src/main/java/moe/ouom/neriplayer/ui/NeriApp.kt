@@ -3311,9 +3311,11 @@ private fun NeriAppContent(
             }
 
             val effectiveDynamicBackgroundEnabled =
-                nowPlayingDynamicBackgroundEnabled && !nowPlayingCoverBlurBackgroundEnabled
+                !moe.ouom.neriplayer.core.classical.ClassicalLowPower.dynamicBackgroundDisabled &&
+                    nowPlayingDynamicBackgroundEnabled && !nowPlayingCoverBlurBackgroundEnabled
             val effectiveAudioReactiveEnabled =
-                nowPlayingAudioReactiveEnabled && effectiveDynamicBackgroundEnabled
+                !moe.ouom.neriplayer.core.classical.ClassicalLowPower.audioReactiveDisabled &&
+                    nowPlayingAudioReactiveEnabled && effectiveDynamicBackgroundEnabled
 
             DisposableEffect(showNowPlaying, effectiveAudioReactiveEnabled, lifecycleResumed) {
                 AudioReactive.enabled = showNowPlaying && effectiveAudioReactiveEnabled && lifecycleResumed

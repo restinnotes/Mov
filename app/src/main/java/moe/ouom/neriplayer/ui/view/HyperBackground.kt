@@ -137,6 +137,9 @@ fun HyperBackground(
     refreshKey: Int = 0,
     offlineMode: Boolean = false
 ) {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.dynamicBackgroundDisabled) {
+        return
+    }
     val context = LocalContext.current
     val applicationContext = context.applicationContext
     val currentIsDark by rememberUpdatedState(isDark)
