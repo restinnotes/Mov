@@ -2200,7 +2200,7 @@ internal fun PlayerManager.startProgressUpdates() {
                     continue
                 }
             }
-            if (lyriconEnabled) {
+            if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyriconDisabled && lyriconEnabled) {
                 LyriconManager.setPlaybackSpeed(playbackSoundConfig.speed)
                 // 与高级歌词同源: 进度环原始媒体位置, 显示 lead 在 LyriconManager 内处理
                 LyriconManager.setPosition(
@@ -2210,7 +2210,9 @@ internal fun PlayerManager.startProgressUpdates() {
                     )
                 )
             }
-            updateExternalBluetoothLyricLine(positionMs)
+            if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) {
+                updateExternalBluetoothLyricLine(positionMs)
+            }
             maybePersistPlaybackProgress(positionMs)
             maybePersistLongFormPlaybackProgress(positionMs)
             val nowElapsedRealtimeMs = SystemClock.elapsedRealtime()

@@ -72,6 +72,7 @@ object FloatingLyricsOverlayManager {
     private var startedActivityCount = 0
 
     fun initialize(app: Application) {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return
         if (application === app) {
             return
         }
@@ -208,6 +209,7 @@ object FloatingLyricsOverlayManager {
     }
 
     private fun shouldShowOverlay(): Boolean {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return false
         val app = application ?: return false
         if (!preferences.enabled || lyricLine.isNullOrBlank()) {
             return false

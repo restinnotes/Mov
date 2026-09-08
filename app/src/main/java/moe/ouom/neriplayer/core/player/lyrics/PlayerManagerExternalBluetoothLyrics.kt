@@ -19,6 +19,7 @@ import moe.ouom.neriplayer.ui.component.lyrics.LyricEntry
 import moe.ouom.neriplayer.ui.component.lyrics.matchTranslationsToLineIndices
 
 internal fun PlayerManager.syncExternalBluetoothLyrics(song: SongItem?) {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return
     externalBluetoothLyricsLoadJob?.cancel()
     externalBluetoothLyricsLoadJob = null
     externalBluetoothTranslationLoadJob?.cancel()
@@ -54,6 +55,7 @@ internal fun PlayerManager.syncExternalBluetoothLyrics(song: SongItem?) {
 }
 
 internal fun PlayerManager.syncExternalTranslatedLyrics(song: SongItem?) {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return
     externalBluetoothTranslationLoadJob?.cancel()
     externalBluetoothTranslationLoadJob = null
     if (!shouldProvideExternalTranslatedLyricLine()) {
@@ -134,6 +136,10 @@ private suspend fun PlayerManager.loadExternalTranslatedLyrics(song: SongItem): 
 }
 
 internal fun PlayerManager.updateExternalBluetoothLyricLine(positionMs: Long) {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) {
+        clearExternalBluetoothLyricLine()
+        return
+    }
     if (!shouldProvideExternalLyricLine()) {
         clearExternalBluetoothLyricLine()
         return
@@ -202,6 +208,7 @@ private fun PlayerManager.clearFloatingTranslatedLyricLine() {
 }
 
 private fun PlayerManager.shouldProvideExternalLyricLine(): Boolean {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return false
     return externalBluetoothLyricsEnabled ||
         externalBluetoothTranslationEnabled ||
         dynamicIslandLyricsEnabled ||
@@ -210,6 +217,7 @@ private fun PlayerManager.shouldProvideExternalLyricLine(): Boolean {
 }
 
 private fun PlayerManager.shouldProvideExternalTranslatedLyricLine(): Boolean {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return false
     return shouldProvideExternalTranslatedLyricLine(
         externalBluetoothTranslationEnabled = externalBluetoothTranslationEnabled,
         floatingLyricsEnabled = floatingLyricsEnabled,
@@ -230,6 +238,7 @@ internal fun shouldProvideExternalTranslatedLyricLine(
 }
 
 internal fun PlayerManager.isExternalBluetoothLyricCadenceActive(): Boolean {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) return false
     val deviceType = _currentAudioDevice.value?.type
     val hasBluetoothOutput = deviceType != null && isBluetoothOutputType(deviceType)
     return (dynamicIslandLyricsEnabled || hasBluetoothOutput) &&

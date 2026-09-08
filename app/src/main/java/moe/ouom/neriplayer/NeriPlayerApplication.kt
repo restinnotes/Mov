@@ -140,20 +140,25 @@ class NeriPlayerApplication : Application() {
             }
 
             // 提前注册前后台回调, 避免等播放器初始化后才开始统计 Activity 状态
-            FloatingLyricsOverlayManager.initialize(this)
+            if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.externalLyricsDisabled) {
+                FloatingLyricsOverlayManager.initialize(this)
+            }
             ManagedDownloadStorage.initialize(this)
 
-            YouTubeMusicUiGatewayInitializer.initialize()
-
-            // 长期不开 App 时没有任何前台流程会去续期, 靠这个周期任务把会话保活
-            YouTubeAuthRotationWorker.schedulePeriodicRotation(this)
+            if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.youTubePrewarmDisabled) {
+                YouTubeMusicUiGatewayInitializer.initialize()
+                // 长期不开 App 时没有任何前台流程会去续期, 靠这个周期任务把会话保活
+                YouTubeAuthRotationWorker.schedulePeriodicRotation(this)
+            }
 
             // 初始化全局下载管理器
             GlobalDownloadManager.initialize(this)
             LegacyJsonCleanupScheduler.schedule(this, "app-init")
 
             // 初始化 LyriconManager, 如果用户启用了 Lyricon 功能
-            if (readPlaybackPreferenceSnapshotSync(this).lyriconEnabled) {
+            if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyriconDisabled &&
+                readPlaybackPreferenceSnapshotSync(this).lyriconEnabled
+            ) {
                 LyriconManager.initialize(this)
             }
 

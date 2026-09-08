@@ -26,6 +26,7 @@ import moe.ouom.neriplayer.ui.component.lyrics.matchTranslationsToLineIndices
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.core.logging.NPLogger
 import moe.ouom.neriplayer.R
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 
 object LyriconManager {
     private var provider: LyriconProvider? = null
@@ -50,6 +51,7 @@ object LyriconManager {
     private var effectiveLyricOffsetMs: Long = 0L
 
     fun initialize(context: Context) {
+        if (ClassicalLowPower.lyriconDisabled) return
         if (provider != null) return
         try {
             if (SuperLyricHelper.isAvailable()) {
@@ -79,6 +81,12 @@ object LyriconManager {
     }
 
     fun setEnabled(isEnabled: Boolean) {
+        if (ClassicalLowPower.lyriconDisabled) {
+            enabled = false
+            stopFeedLoop()
+            release()
+            return
+        }
         enabled = isEnabled
         if (isEnabled) {
             ensurePublisherRegistered()
@@ -109,6 +117,7 @@ object LyriconManager {
     }
 
     fun setPlaybackState(isPlaying: Boolean) {
+        if (ClassicalLowPower.lyriconDisabled) return
         if (!enabled && isPlaying) return
         try {
             provider?.player?.setPlaybackState(isPlaying)
@@ -123,6 +132,7 @@ object LyriconManager {
     }
 
     fun setPosition(positionMs: Long) {
+        if (ClassicalLowPower.lyriconDisabled) return
         if (!enabled) return
         try {
             // 锚点用真实媒体进度
@@ -175,6 +185,7 @@ object LyriconManager {
         translatedLyrics: List<LyricEntry>?,
         lyricOffsetMs: Long = 0L,
     ) {
+        if (ClassicalLowPower.lyriconDisabled) return
         if (!enabled) return
         try {
             setLyricOffset(lyricOffsetMs)
@@ -238,6 +249,7 @@ object LyriconManager {
     }
 
     private fun updateSuperLyric(positionMs: Long) {
+        if (ClassicalLowPower.lyriconDisabled) return
         try {
             if (!SuperLyricHelper.isAvailable()) return
 
@@ -328,6 +340,10 @@ object LyriconManager {
     }
 
     private fun startFeedLoop() {
+        if (ClassicalLowPower.lyriconDisabled) {
+            feedRunning = false
+            return
+        }
         if (feedJob?.isActive == true) {
             feedRunning = true
             return

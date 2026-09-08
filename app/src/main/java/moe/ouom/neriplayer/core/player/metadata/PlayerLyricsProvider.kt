@@ -743,6 +743,9 @@ internal object PlayerLyricsProvider {
         ytMusicLyricsCache: LruCache<String, YouTubeMusicLyricsCacheEntry>,
         biliSourceTag: String
     ): List<LyricEntry> {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) {
+            return emptyList()
+        }
         return withContext(Dispatchers.IO) {
             val isYouTubeMusicTrack = isYouTubeMusicSong(song)
         val localLyrics = if (song.isLocalSong()) {
@@ -866,6 +869,9 @@ internal object PlayerLyricsProvider {
         neteaseLyricsCache: LruCache<Long, NeteaseLyricsCacheEntry>,
         biliSourceTag: String
     ): List<LyricEntry> {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) {
+            return emptyList()
+        }
         return withContext(Dispatchers.IO) {
             val localRomanizedLyric = if (song.isLocalSong()) {
                 LocalMediaSupport.inspectLyricsFast(song).romanizedLyric
@@ -941,6 +947,9 @@ internal object PlayerLyricsProvider {
         ytMusicLyricsCache: LruCache<String, YouTubeMusicLyricsCacheEntry>,
         biliSourceTag: String
     ): List<LyricEntry> {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) {
+            return emptyList()
+        }
         return withContext(Dispatchers.IO) {
             val isYouTubeMusicTrack = isYouTubeMusicSong(song)
             val localLyric = if (song.isLocalSong()) {

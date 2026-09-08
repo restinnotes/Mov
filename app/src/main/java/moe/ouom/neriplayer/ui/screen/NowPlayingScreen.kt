@@ -2651,7 +2651,7 @@ fun NowPlayingScreen(
         SharedTransitionLayout {
             Box(modifier = Modifier.fillMaxSize()) {
                 AnimatedContent(
-                    targetState = showLyricsScreen,
+                    targetState = showLyricsScreen && !moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled,
                     transitionSpec = {
                         fadeIn(
                             animationSpec = tween(
@@ -2714,7 +2714,7 @@ fun NowPlayingScreen(
                     }
 
                 // 手机或竖屏下, 左滑进入歌词页
-                if (!useWideLandscapeLayout && lyrics.isNotEmpty()) {
+                if (!useWideLandscapeLayout && lyrics.isNotEmpty() && !moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) {
                     contentModifier = contentModifier.pointerInput(lyrics) {
                         detectHorizontalDragGestures { _, dragAmount ->
                             if (dragAmount < -20) onShowLyricsScreenChange(true)
@@ -3382,34 +3382,36 @@ fun NowPlayingScreen(
                                     )
                                 }
 
-                                // 歌词按钮
-                                HapticIconButton(
-                                    onClick = { onShowLyricsScreenChange(!showLyricsScreen) },
-                                    enabled = lyrics.isNotEmpty(),
-                                    modifier = toolbarActionModifier
-                                        .sharedBounds(
-                                            rememberSharedContentState(key = "btn_lyrics"),
-                                            animatedVisibilityScope = this@AnimatedContent,
-                                            enter = EnterTransition.None,
-                                            exit = ExitTransition.None,
-                                        ).zIndex(1f)
-                                ) {
-                                    AnimatedContent(
-                                        targetState = showLyricsScreen,
-                                        label = "lyrics_icon"
-                                    ) { isShowingLyrics ->
-                                        Icon(
-                                            imageVector = if (isShowingLyrics) Icons.Outlined.LibraryMusic else Icons.Outlined.LibraryMusic,
-                                            contentDescription = stringResource(R.string.lyrics_title),
-                                            tint = if (lyrics.isEmpty()) {
-                                                LocalContentColor.current.copy(alpha = 0.38f)
-                                            } else if (isShowingLyrics) {
-                                                nowPlayingActiveIconColor
-                                            } else {
-                                                LocalContentColor.current
-                                            },
-                                            modifier = Modifier.size(toolbarLayout.iconSize)
-                                        )
+                                if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) {
+                                    // 歌词按钮
+                                    HapticIconButton(
+                                        onClick = { onShowLyricsScreenChange(!showLyricsScreen) },
+                                        enabled = lyrics.isNotEmpty(),
+                                        modifier = toolbarActionModifier
+                                            .sharedBounds(
+                                                rememberSharedContentState(key = "btn_lyrics"),
+                                                animatedVisibilityScope = this@AnimatedContent,
+                                                enter = EnterTransition.None,
+                                                exit = ExitTransition.None,
+                                            ).zIndex(1f)
+                                    ) {
+                                        AnimatedContent(
+                                            targetState = showLyricsScreen,
+                                            label = "lyrics_icon"
+                                        ) { isShowingLyrics ->
+                                            Icon(
+                                                imageVector = if (isShowingLyrics) Icons.Outlined.LibraryMusic else Icons.Outlined.LibraryMusic,
+                                                contentDescription = stringResource(R.string.lyrics_title),
+                                                tint = if (lyrics.isEmpty()) {
+                                                    LocalContentColor.current.copy(alpha = 0.38f)
+                                                } else if (isShowingLyrics) {
+                                                    nowPlayingActiveIconColor
+                                                } else {
+                                                    LocalContentColor.current
+                                                },
+                                                modifier = Modifier.size(toolbarLayout.iconSize)
+                                            )
+                                        }
                                     }
                                 }
 

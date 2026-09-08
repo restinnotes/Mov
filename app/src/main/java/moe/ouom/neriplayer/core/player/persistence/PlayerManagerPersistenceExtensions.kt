@@ -938,6 +938,7 @@ internal suspend fun PlayerManager.getPreferredNeteaseRomanizedLyricContentImpl(
 }
 
 internal suspend fun PlayerManager.getTranslatedLyricsImpl(song: SongItem): List<LyricEntry> {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) return emptyList()
     return PlayerLyricsProvider.getTranslatedLyrics(
         song = song,
         application = application,
@@ -950,6 +951,7 @@ internal suspend fun PlayerManager.getTranslatedLyricsImpl(song: SongItem): List
 }
 
 internal suspend fun PlayerManager.getRomanizedLyricsImpl(song: SongItem): List<LyricEntry> {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) return emptyList()
     return PlayerLyricsProvider.getRomanizedLyrics(
         song = song,
         application = application,
@@ -960,6 +962,7 @@ internal suspend fun PlayerManager.getRomanizedLyricsImpl(song: SongItem): List<
 }
 
 internal suspend fun PlayerManager.getLyricsImpl(song: SongItem): List<LyricEntry> {
+    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) return emptyList()
     return PlayerLyricsProvider.getLyrics(
         song = song,
         application = application,

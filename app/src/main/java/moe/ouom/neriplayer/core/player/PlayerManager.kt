@@ -815,6 +815,7 @@ object PlayerManager {
         song: SongItem?,
         lyricOffsetOverrideMs: Long? = null,
     ) {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyriconDisabled) return
         val request = lyriconUpdateCoordinator.replace(
             createJob = { updateGeneration ->
                 if (!lyriconEnabled || song == null) {
@@ -874,6 +875,7 @@ object PlayerManager {
     }
 
     internal fun updateLyriconLyricOffset(song: SongItem? = _currentSongFlow.value) {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyriconDisabled) return
         if (!lyriconEnabled) return
         val lyricOffsetMs = song?.let { resolveLyriconLyricOffsetMs(it) } ?: 0L
         LyriconManager.setLyricOffset(lyricOffsetMs)
