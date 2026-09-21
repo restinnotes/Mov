@@ -900,8 +900,6 @@ fun ExploreScreen(
                     if (ClassicalLowPower.enabled) {
                         Spacer(Modifier.height(8.dp))
                         ClassicalSearchModeRow(
-                            aggregateEnabled = ui.aggregateEnabled,
-                            onAggregateChange = vm::setAggregateEnabled,
                             defaultMode = ui.defaultSearchMode,
                             onDefaultModeChange = vm::setDefaultSearchMode,
                             youtubeAvailable = youtubeEnabled
@@ -1116,7 +1114,12 @@ fun ExploreScreen(
                             if (ClassicalLowPower.enabled) {
                                 ClassicalEmptySearchState(
                                     aggregateEnabled = ui.aggregateEnabled,
-                                    onEnableAggregate = { vm.setAggregateEnabled(true) }
+                                    onEnableAggregate = {
+                                        vm.setDefaultSearchMode(
+                                            moe.ouom.neriplayer.data.search
+                                                .ClassicalDefaultSearchMode.AGGREGATE
+                                        )
+                                    }
                                 )
                             } else {
                                 NeteaseDefaultContent(

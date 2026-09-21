@@ -402,45 +402,42 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         _uiState.value = _uiState.value.copy(defaultSearchMode = mode)
         when (initial) {
             is ExploreSearchMode.Aggregate -> {
-                _uiState.value = _uiState.value.copy(aggregateEnabled = true)
+                // 聚合即来源模式：同一时刻只存在一套搜索界面，无独立开关。
+                searchJob?.cancel()
+                searchMoreJob?.cancel()
+                invalidateSearchRequest()
+                _uiState.value = _uiState.value.copy(
+                    aggregateEnabled = true,
+                    aggregate = AggregateSearchState()
+                )
             }
             is ExploreSearchMode.Provider -> {
-                if (_uiState.value.selectedSearchSource != initial.source) {
-                    _uiState.value = _uiState.value.copy(
-                        selectedSearchSource = initial.source,
-                        searching = false,
-                        searchResults = emptyList(),
-                        searchItems = emptyList(),
-                        searchHasMore = false,
-                        searchPage = 0,
-                        searchKeyword = "",
-                        searchDisplayQuery = "",
-                        searchError = null
-                    )
-                }
+                searchJob?.cancel()
+                searchMoreJob?.cancel()
+                invalidateSearchRequest()
+                _uiState.value = _uiState.value.copy(
+                    aggregateEnabled = false,
+                    aggregate = AggregateSearchState(),
+                    selectedSearchSource = initial.source,
+                    searching = false,
+                    searchResults = emptyList(),
+                    searchItems = emptyList(),
+                    searchHasMore = false,
+                    searchPage = 0,
+                    searchKeyword = "",
+                    searchDisplayQuery = "",
+                    searchError = null
+                )
             }
         }
     }
 
-    /** 用户切换默认搜索：持久化并立即生效（Classical 设置面）。 */
+    /** 用户切换搜索来源（B站/聚合/YouTube）：持久化并立即生效。 */
     fun setDefaultSearchMode(mode: ClassicalDefaultSearchMode) {
         viewModelScope.launch {
             classicalSearchPref.setDefaultMode(mode)
             applyDefaultSearchMode(mode)
         }
-    }
-
-    /** 聚合开关（Classical）：各 provider 独立分页，失败隔离。 */
-    fun setAggregateEnabled(enabled: Boolean) {
-        if (!ClassicalLowPower.enabled) return
-        if (enabled == _uiState.value.aggregateEnabled) return
-        searchJob?.cancel()
-        searchMoreJob?.cancel()
-        invalidateSearchRequest()
-        _uiState.value = _uiState.value.copy(
-            aggregateEnabled = enabled,
-            aggregate = AggregateSearchState()
-        )
     }
 
     /** 设置当前搜索源 */

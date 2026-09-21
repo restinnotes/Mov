@@ -12,14 +12,13 @@ import androidx.compose.ui.unit.dp
 import moe.ouom.neriplayer.data.search.ClassicalDefaultSearchMode
 
 /**
- * Classical 搜索模式行（Subagent 04）：
- * 聚合开关 + 默认搜索（B站/聚合/YouTube）选择。用户可改，持久化由 VM 负责。
+ * Classical 搜索来源三选一：B站 / 聚合 / YouTube。
+ * 点选即时生效并持久化为默认来源；同一时刻只存在一套搜索界面
+ * （聚合开时整块替换单源 pager，不再有独立的聚合开关）。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ClassicalSearchModeRow(
-    aggregateEnabled: Boolean,
-    onAggregateChange: (Boolean) -> Unit,
     defaultMode: ClassicalDefaultSearchMode,
     onDefaultModeChange: (ClassicalDefaultSearchMode) -> Unit,
     youtubeAvailable: Boolean,
@@ -31,25 +30,20 @@ fun ClassicalSearchModeRow(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         FilterChip(
-            selected = aggregateEnabled,
-            onClick = { onAggregateChange(!aggregateEnabled) },
-            label = { Text("聚合") },
-        )
-        FilterChip(
             selected = defaultMode == ClassicalDefaultSearchMode.BILIBILI,
             onClick = { onDefaultModeChange(ClassicalDefaultSearchMode.BILIBILI) },
-            label = { Text("默认：B站") },
+            label = { Text("B站") },
         )
         FilterChip(
             selected = defaultMode == ClassicalDefaultSearchMode.AGGREGATE,
             onClick = { onDefaultModeChange(ClassicalDefaultSearchMode.AGGREGATE) },
-            label = { Text("默认：聚合") },
+            label = { Text("聚合") },
         )
         if (youtubeAvailable) {
             FilterChip(
                 selected = defaultMode == ClassicalDefaultSearchMode.YOUTUBE,
                 onClick = { onDefaultModeChange(ClassicalDefaultSearchMode.YOUTUBE) },
-                label = { Text("默认：YouTube") },
+                label = { Text("YouTube") },
             )
         }
     }
