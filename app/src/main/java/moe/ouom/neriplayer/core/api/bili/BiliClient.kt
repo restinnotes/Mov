@@ -74,7 +74,8 @@ class BiliClient(
 
         // 评论 (plain JSON, cookie)
         private const val REPLY_URL = "https://api.bilibili.com/x/v2/reply"
-        private const val REPLY_DIALOG_URL = "https://api.bilibili.com/x/v2/reply/dialog"
+        private const val REPLY_MAIN_URL = "https://api.bilibili.com/x/v2/reply/main"
+        private const val REPLY_REPLY_URL = "https://api.bilibili.com/x/v2/reply/reply"
 
         // 搜索 (WBI)
         private const val SEARCH_TYPE_URL = "https://api.bilibili.com/x/web-interface/wbi/search/type"
@@ -683,17 +684,40 @@ class BiliClient(
         page: Int,
         pageSize: Int
     ): BiliCommentPage = withContext(Dispatchers.IO) {
-        val data = getJson(
-            REPLY_URL,
-            mapOf(
-                "type" to "1",
-                "oid" to avid.toString(),
-                "sort" to sort.toString(),
-                "pn" to page.coerceAtLeast(1).toString(),
-                "ps" to pageSize.coerceIn(1, 20).toString()
-            )
-        ).optJSONObject("data") ?: JSONObject()
-        parseBiliCommentPage(data, page)
+        // 优先尝试 /x/v2/reply/main (cursor 分页，mode 3=热度，2=最新)，失败则回退 legacy /x/v2/reply
+        val mainResult = runCatching {
+            val modeStr = if (sort == 0) "2" else "3"
+            val nextCursor = if (page <= 1) "0" else (page - 1).toString()
+            val data = getJson(
+                REPLY_MAIN_URL,
+                mapOf(
+                    "type" to "1",
+                    "oid" to avid.toString(),
+                    "mode" to modeStr,
+                    "next" to nextCursor,
+                    "plat" to "1"
+                )
+            ).optJSONObject("data")
+            data?.let { parseBiliCommentPage(it, page) }
+        }.getOrNull()
+
+        if (mainResult != null && (mainResult.items.isNotEmpty() || !mainResult.hasMore)) {
+            return@withContext mainResult
+        }
+
+        val fallbackData = runCatching {
+            getJson(
+                REPLY_URL,
+                mapOf(
+                    "type" to "1",
+                    "oid" to avid.toString(),
+                    "sort" to sort.toString(),
+                    "pn" to page.coerceAtLeast(1).toString(),
+                    "ps" to pageSize.coerceIn(1, 20).toString()
+                )
+            ).optJSONObject("data") ?: JSONObject()
+        }.getOrDefault(JSONObject())
+        parseBiliCommentPage(fallbackData, page)
     }
 
     /**
@@ -707,7 +731,7 @@ class BiliClient(
         pageSize: Int
     ): BiliCommentPage = withContext(Dispatchers.IO) {
         val data = getJson(
-            REPLY_DIALOG_URL,
+            REPLY_REPLY_URL,
             mapOf(
                 "type" to "1",
                 "oid" to avid.toString(),
@@ -726,12 +750,21 @@ class BiliClient(
                 parseBiliRichComment(replies.optJSONObject(index) ?: continue)?.let { add(it) }
             }
         }
-        val pageInfo = data.optJSONObject("page") ?: JSONObject()
-        val num = pageInfo.optInt("num", page)
-        val size = pageInfo.optInt("size", items.size)
-        val count = pageInfo.optLong("count", (num * size).toLong())
-        val hasMore = num.toLong() * size < count
-        return BiliCommentPage(items = items, hasMore = hasMore, nextPage = page + 1)
+        val cursor = data.optJSONObject("cursor")
+        val hasMore: Boolean
+        val nextPage: Int
+        if (cursor != null) {
+            hasMore = !cursor.optBoolean("is_end", false) && items.isNotEmpty()
+            nextPage = cursor.optInt("next", page + 1)
+        } else {
+            val pageInfo = data.optJSONObject("page") ?: JSONObject()
+            val num = pageInfo.optInt("num", page)
+            val size = pageInfo.optInt("size", items.size.coerceAtLeast(1))
+            val count = pageInfo.optLong("count", (num * size).toLong())
+            hasMore = num.toLong() * size < count && items.isNotEmpty()
+            nextPage = page + 1
+        }
+        return BiliCommentPage(items = items, hasMore = hasMore, nextPage = nextPage)
     }
 
     private fun parseBiliRichComment(reply: JSONObject, depth: Int = 0): BiliRichComment? {
@@ -779,13 +812,14 @@ class BiliClient(
         } else {
             emptyList()
         }
+        val avatarRaw = member.optString("avatar").ifBlank { member.optString("face") }
         return BiliRichComment(
             rpid = rpid,
             parent = reply.opt("parent")?.toString()?.trim().orEmpty().ifBlank { "0" },
             root = reply.opt("root")?.toString()?.trim().orEmpty().ifBlank { "0" },
             userMid = member.optString("mid").toLongOrNull() ?: 0L,
             userName = member.optString("uname"),
-            avatarUrl = ensureHttps(member.optString("face")),
+            avatarUrl = ensureHttps(avatarRaw),
             message = message,
             likeCount = reply.optLong("like"),
             replyCount = reply.optInt("rcount"),

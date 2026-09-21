@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -75,6 +76,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import moe.ouom.neriplayer.core.api.bili.BiliClient
 import moe.ouom.neriplayer.ui.viewmodel.source.ClassicalSourceViewModel
+import moe.ouom.neriplayer.util.format.formatDuration
 
 private const val SEEK_TAG = "SOURCE_SEEK"
 
@@ -364,56 +366,33 @@ private fun SourceCommentsContent(
             }
         }
     }
-    Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = state.commentSort == ClassicalSourceViewModel.CommentSort.FEATURED,
-                onClick = {
-                    onSortChange(ClassicalSourceViewModel.CommentSort.FEATURED)
-                },
-                label = { Text("精选") }
-            )
-            FilterChip(
-                selected = state.commentSort == ClassicalSourceViewModel.CommentSort.LATEST,
-                onClick = {
-                    onSortChange(ClassicalSourceViewModel.CommentSort.LATEST)
-                },
-                label = { Text("最新") }
-            )
-        }
-        LazyColumn(
-            state = listState,
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
-        ) {
-            items(
-                items = comments.items,
-                key = { it.rpid }
-            ) { comment ->
-                Column {
-                    CommentRow(
-                        comment = comment,
-                        nowMs = nowMs,
-                        thread = state.replies[comment.rpid],
-                        onToggleReplies = { onToggleReplies(comment.rpid) },
-                        onLoadMoreReplies = { onLoadMoreReplies(comment.rpid) },
-                        onSeekTo = onSeekTo,
-                        onPictureClick = { viewerUrl = it }
-                    )
-                    HorizontalDivider(
-                        modifier = Modifier.padding(top = 4.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                    )
-                }
+    // 注意：精选/最新 切换已在顶部 Appbar 右侧提供，此处不再重复渲染第二行 Chip。
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+    ) {
+        items(
+            items = comments.items,
+            key = { it.rpid }
+        ) { comment ->
+            Column {
+                CommentRow(
+                    comment = comment,
+                    nowMs = nowMs,
+                    thread = state.replies[comment.rpid],
+                    onToggleReplies = { onToggleReplies(comment.rpid) },
+                    onLoadMoreReplies = { onLoadMoreReplies(comment.rpid) },
+                    onSeekTo = onSeekTo,
+                    onPictureClick = { viewerUrl = it }
+                )
+                HorizontalDivider(
+                    modifier = Modifier.padding(top = 8.dp),
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                )
             }
-            item(key = "comments-footer") {
+        }
+        item(key = "comments-footer") {
                 when (comments.loadState) {
                     ClassicalSourceViewModel.CommentsLoadState.LOADING_MORE -> {
                         Box(
@@ -456,7 +435,6 @@ private fun SourceCommentsContent(
             }
         }
     }
-}
 
 @Composable
 private fun CommentRow(
@@ -486,18 +464,26 @@ private fun CommentRow(
                 Spacer(Modifier.width(12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = comment.userName.ifBlank { "匿名" },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
                         color = MaterialTheme.colorScheme.secondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
+                    Spacer(Modifier.width(8.dp))
                     Text(
                         text = formatCommentRelativeTime(comment.ctimeSec * 1000L, nowMs),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
                         color = MaterialTheme.colorScheme.outline
                     )
                 }
@@ -673,18 +659,26 @@ private fun ReplyRow(
             Spacer(Modifier.width(8.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = reply.userName.ifBlank { "匿名" },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    ),
                     color = MaterialTheme.colorScheme.secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false)
                 )
+                Spacer(Modifier.width(8.dp))
                 Text(
                     text = formatCommentRelativeTime(reply.ctimeSec * 1000L, nowMs),
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.outline
                 )
             }
@@ -769,7 +763,8 @@ private fun RichCommentText(
         buildAnnotatedString {
             var emoteIndex = 0
             val linkStyle = androidx.compose.ui.text.SpanStyle(
-                color = androidx.compose.ui.graphics.Color(0xFF1E88E5)
+                color = androidx.compose.ui.graphics.Color(0xFF1E88E5),
+                fontWeight = FontWeight.Bold
             )
             for (segment in segments) {
                 when (segment) {
@@ -789,26 +784,57 @@ private fun RichCommentText(
             }
         }
     }
-    var layoutResult by remember {
-        mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val onTimestampClick: (Long) -> Unit = { positionMs ->
+        onSeekTo(positionMs)
+        android.widget.Toast.makeText(
+            context,
+            "已跳转至 ${formatDuration(positionMs)}",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
     }
-    Text(
-        text = annotated,
-        style = MaterialTheme.typography.bodyMedium.copy(
-            color = MaterialTheme.colorScheme.onSurface
-        ),
-        inlineContent = inlineContent,
-        onTextLayout = { layoutResult = it },
-        modifier = modifier.pointerInput(annotated) {
-            detectTapGestures { pos ->
-                layoutResult?.getOffsetForPosition(pos)?.let { offset ->
-                    annotated.getStringAnnotations(tag = SEEK_TAG, start = offset, end = offset)
-                        .firstOrNull()
-                        ?.item
-                        ?.toLongOrNull()
-                        ?.let { onSeekTo(it) }
+
+    if (inlineContent.isEmpty()) {
+        ClickableText(
+            text = annotated,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp,
+                lineHeight = 22.sp
+            ),
+            modifier = modifier,
+            onClick = { offset ->
+                annotated.getStringAnnotations(tag = SEEK_TAG, start = offset, end = offset)
+                    .firstOrNull()
+                    ?.item
+                    ?.toLongOrNull()
+                    ?.let(onTimestampClick)
+            }
+        )
+    } else {
+        var layoutResult by remember {
+            mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+        }
+        Text(
+            text = annotated,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                fontSize = 15.sp,
+                lineHeight = 22.sp
+            ),
+            inlineContent = inlineContent,
+            onTextLayout = { layoutResult = it },
+            modifier = modifier.pointerInput(annotated) {
+                detectTapGestures { pos ->
+                    layoutResult?.getOffsetForPosition(pos)?.let { offset ->
+                        annotated.getStringAnnotations(tag = SEEK_TAG, start = offset, end = offset)
+                            .firstOrNull()
+                            ?.item
+                            ?.toLongOrNull()
+                            ?.let(onTimestampClick)
+                    }
                 }
             }
-        }
-    )
+        )
+    }
 }

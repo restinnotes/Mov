@@ -844,7 +844,9 @@ fun ExploreScreen(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    if (!ui.aggregateEnabled && orderedSearchSources.size > 1) {
+                    // Official 模式：保留上游 Tab 栏与 SearchTypeBar；
+                    // Classical 模式：隐藏上游 Tab 栏，仅展示单行三选一 (B站/聚合/YouTube)，彻底杜绝双套标签并存。
+                    if (!ClassicalLowPower.enabled && !ui.aggregateEnabled && orderedSearchSources.size > 1) {
                         AdvancedGlassSurface(
                             role = AdvancedGlassRole.ScreenTopTab,
                             modifier = Modifier
@@ -885,7 +887,7 @@ fun ExploreScreen(
                             }
                         }
                     }
-                    if (!ui.aggregateEnabled) {
+                    if (!ClassicalLowPower.enabled && !ui.aggregateEnabled) {
                         ExploreSearchTypeBar(
                             source = searchTypeBarSource,
                             selectedNeteaseSearchType = ui.selectedNeteaseSearchType,
@@ -898,7 +900,6 @@ fun ExploreScreen(
                         )
                     }
                     if (ClassicalLowPower.enabled) {
-                        Spacer(Modifier.height(8.dp))
                         ClassicalSearchModeRow(
                             defaultMode = ui.defaultSearchMode,
                             onDefaultModeChange = vm::setDefaultSearchMode,
