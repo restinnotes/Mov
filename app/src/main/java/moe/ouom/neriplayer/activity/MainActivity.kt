@@ -384,6 +384,18 @@ class MainActivity : ComponentActivity() {
                 .collectAsStateWithLifecycle(initialValue = null)
             val startupOnboardingCompleted by settingsRepository.startupOnboardingCompletedFlow
                 .collectAsStateWithLifecycle(initialValue = null)
+            // Classical 开屏零确认：首次启动即持久化 disclaimer + onboarding，直接进 Main。
+            // official 原样走 Disclaimer → Onboarding 链路。
+            val classicalSkipOnboarding =
+                moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled
+            LaunchedEffect(classicalSkipOnboarding) {
+                if (classicalSkipOnboarding &&
+                    (disclaimerAccepted != true || startupOnboardingCompleted != true)
+                ) {
+                    runCatching { settingsRepository.setDisclaimerAccepted(true) }
+                    runCatching { settingsRepository.setStartupOnboardingCompleted(true) }
+                }
+            }
             var pendingDisclaimerAccepted by rememberSaveable {
                 mutableStateOf(false)
             }
@@ -474,11 +486,20 @@ class MainActivity : ComponentActivity() {
                 val stage = remember(
                     disclaimerAccepted,
                     startupOnboardingCompleted,
-                    pendingDisclaimerAccepted
+                    pendingDisclaimerAccepted,
+                    classicalSkipOnboarding
                 ) {
                     StartupStageResolver.resolve(
-                        disclaimerAccepted = disclaimerAccepted,
-                        startupOnboardingCompleted = startupOnboardingCompleted,
+                        disclaimerAccepted = moe.ouom.neriplayer.core.classical
+                            .effectiveDisclaimerAccepted(
+                                disclaimerAccepted,
+                                classicalSkipOnboarding
+                            ),
+                        startupOnboardingCompleted = moe.ouom.neriplayer.core.classical
+                            .effectiveOnboardingCompleted(
+                                startupOnboardingCompleted,
+                                classicalSkipOnboarding
+                            ),
                         pendingDisclaimerAccepted = pendingDisclaimerAccepted
                     )
                 }
