@@ -25,6 +25,7 @@ import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ThumbUp
@@ -86,12 +87,33 @@ fun ClassicalSourcePage(
     viewModel: ClassicalSourceViewModel,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier,
-    startTab: SourceTab = SourceTab.INTRO
+    startTab: SourceTab = SourceTab.INTRO,
+    onBack: (() -> Unit)? = null
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var selectedTab by remember(startTab) { mutableStateOf(startTab) }
 
     Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (onBack != null) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "返回"
+                    )
+                }
+            }
+            Text(
+                text = if (selectedTab == SourceTab.INTRO) "简介" else "评论",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()

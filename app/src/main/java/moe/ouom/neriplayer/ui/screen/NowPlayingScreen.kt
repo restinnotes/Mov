@@ -3997,6 +3997,7 @@ fun NowPlayingScreen(
                         viewModel = sourceViewModel,
                         onSeekTo = { positionMs -> PlayerManager.seekTo(positionMs) },
                         startTab = sourceInitialTab,
+                        onBack = { showSourceScreen = false },
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.background)
