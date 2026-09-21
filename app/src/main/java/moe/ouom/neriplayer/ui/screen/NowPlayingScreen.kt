@@ -105,6 +105,8 @@ import androidx.compose.material.icons.automirrored.outlined.QueueMusic
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Headset
 import androidx.compose.material.icons.filled.MoreVert
@@ -739,6 +741,83 @@ internal fun invertNowPlayingQueueSelection(
     }
 }
 
+/**
+ * Classical 队列分组合头：同一视频的连续分P成组显示，大标题默认展开，
+ * 点标题收缩/展开。仅 classical；official 走平面列表。
+ */
+@Composable
+private fun NowPlayingQueueGroupHeader(
+    title: String,
+    count: Int,
+    coverUrl: String?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onPlayAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onToggle),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.30f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (!coverUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = coverUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.PlayArrow,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = "$count 个分P",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onPlayAll) {
+                Icon(
+                    imageVector = Icons.Outlined.PlayArrow,
+                    contentDescription = stringResource(R.string.playlist_queue),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Icon(
+                imageVector = if (expanded) {
+                    Icons.Filled.ExpandLess
+                } else {
+                    Icons.Filled.ExpandMore
+                },
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun NowPlayingQueueRow(
     modifier: Modifier = Modifier,
@@ -1196,7 +1275,26 @@ internal fun NowPlayingQueueSheet(
         )
     }
     val queueListState = rememberLazyListState(
-        initialFirstVisibleItemIndex = initialQueueScrollTarget ?: 0
+        initialFirstVisibleItemIndex = run {
+            val entryTarget = initialQueueScrollTarget ?: return@run 0
+            // Classical 分组显示时显示位置与队列序号不一致：初次定位映射到显示位置。
+            if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                return@run entryTarget
+            }
+            val rows = moe.ouom.neriplayer.core.classical.queue.groupConsecutiveBiliRuns(
+                sourceEntries.map { it.song }
+            )
+            var songIdx = 0
+            var di = 0
+            for (row in rows) {
+                if (row is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.Song) {
+                    if (songIdx == entryTarget) return@run di
+                    songIdx += 1
+                }
+                di += 1
+            }
+            0
+        }
     )
     var initialQueuePositioned by remember { mutableStateOf(initialQueueScrollTarget != null) }
     var queueOrderDirty by remember { mutableStateOf(false) }
@@ -1224,6 +1322,53 @@ internal fun NowPlayingQueueSheet(
             queueEntries.mapTo(LinkedHashSet()) { it.key }
         }
     }
+    // Classical 队列分组合显示：同一视频连续分P成组，大标题默认展开；
+    // official 保持平面列表（零行为变化）。
+    val classicalQueueGrouping = moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled
+    var collapsedQueueGroups by remember { mutableStateOf(setOf<String>()) }
+    val queueEntriesSnapshot = queueEntries.toList()
+    val queueDisplayRows: List<moe.ouom.neriplayer.core.classical.queue.BiliQueueRow> =
+        remember(queueEntriesSnapshot, collapsedQueueGroups, classicalQueueGrouping) {
+            if (!classicalQueueGrouping) {
+                queueEntriesSnapshot.mapIndexed { i, e ->
+                    moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.Song(
+                        song = e.song,
+                        queueIndex = i,
+                        groupKey = null
+                    )
+                }
+            } else {
+                moe.ouom.neriplayer.core.classical.queue.groupConsecutiveBiliRuns(
+                    queueEntriesSnapshot.map { it.song }
+                ).filterNot { row ->
+                    row is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.Song &&
+                        row.groupKey != null && row.groupKey in collapsedQueueGroups
+                }
+            }
+        }
+    val queueRowKey: (moe.ouom.neriplayer.core.classical.queue.BiliQueueRow) -> String = { row ->
+        when (row) {
+            is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.GroupHeader ->
+                "header:${row.groupKey}"
+            is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.Song ->
+                queueEntriesSnapshot.getOrNull(row.queueIndex)?.key ?: "song:${row.queueIndex}"
+        }
+    }
+    val entryPosByKey = remember(queueEntriesSnapshot) {
+        queueEntriesSnapshot.mapIndexed { i, e -> e.key to i }.toMap()
+    }
+    val displayPosByRowKey = remember(queueDisplayRows) {
+        buildMap {
+            queueDisplayRows.forEachIndexed { di, row -> put(queueRowKey(row), di) }
+        }
+    }
+    LaunchedEffect(queueDisplayRows) {
+        val valid = queueDisplayRows
+            .filterIsInstance<moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.GroupHeader>()
+            .mapTo(HashSet()) { it.groupKey }
+        val pruned = collapsedQueueGroups.intersect(valid)
+        if (pruned != collapsedQueueGroups) collapsedQueueGroups = pruned
+    }
     val selectedSongs by remember {
         derivedStateOf {
             queueEntries.filter { it.key in selectedKeys }.map { it.song }
@@ -1240,6 +1385,10 @@ internal fun NowPlayingQueueSheet(
             }
             val fromKey = from.key as? String ?: return@rememberReorderableLazyListState
             val toKey = to.key as? String ?: return@rememberReorderableLazyListState
+            // 分组头不可拖拽：涉及 header key 的移动直接忽略。
+            if (fromKey.startsWith("header:") || toKey.startsWith("header:")) {
+                return@rememberReorderableLazyListState
+            }
             if (moveNowPlayingQueueEntry(queueEntries, fromKey, toKey)) {
                 queueOrderDirty = true
             }
@@ -1296,7 +1445,9 @@ internal fun NowPlayingQueueSheet(
     }
 
     fun scrollToQueueIndex(index: Int) {
-        val targetIndex = index.takeIf { it in queueEntries.indices } ?: return
+        val entry = queueEntries.getOrNull(index) ?: return
+        // 分组显示时列表位置与队列序号不一致，按 entry key 映射到显示位置。
+        val targetIndex = displayPosByRowKey[entry.key] ?: return
         screenScope.launch {
             reorderState.listState.animateScrollToItem(targetIndex)
         }
@@ -1354,8 +1505,12 @@ internal fun NowPlayingQueueSheet(
             currentIndex = currentIndexInQueueEntries
         ) ?: return@LaunchedEffect
         if (targetIndex !in queueEntries.indices) return@LaunchedEffect
+        // 分组显示时映射到显示位置。
+        val targetDisplayIndex = queueEntries.getOrNull(targetIndex)?.key?.let { key ->
+            displayPosByRowKey[key]
+        } ?: return@LaunchedEffect
         if (!shouldUpdateNowPlayingQueueScroll(
-                targetIndex = targetIndex,
+                targetIndex = targetDisplayIndex,
                 firstVisibleItemIndex = queueListState.firstVisibleItemIndex,
                 firstVisibleItemScrollOffset = queueListState.firstVisibleItemScrollOffset
             )
@@ -1364,10 +1519,10 @@ internal fun NowPlayingQueueSheet(
             return@LaunchedEffect
         }
         if (!initialQueuePositioned) {
-            queueListState.scrollToItem(targetIndex)
+            queueListState.scrollToItem(targetDisplayIndex)
             initialQueuePositioned = true
         } else {
-            queueListState.animateScrollToItem(targetIndex)
+            queueListState.animateScrollToItem(targetDisplayIndex)
         }
     }
 
@@ -1512,12 +1667,47 @@ internal fun NowPlayingQueueSheet(
                     ),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    itemsIndexed(
-                        items = queueEntries,
-                        key = { _, entry -> entry.key },
-                        contentType = { _, _ -> "queue_song" }
-                    ) { index, entry ->
-                        ReorderableItem(state = reorderState, key = entry.key) { isDragging ->
+                    items(
+                        items = queueDisplayRows,
+                        key = queueRowKey,
+                        contentType = { row ->
+                            when (row) {
+                                is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.GroupHeader ->
+                                    "queue_group_header"
+                                is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.Song ->
+                                    "queue_song"
+                            }
+                        }
+                    ) { row ->
+                        when (row) {
+                            is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.GroupHeader -> {
+                                val firstCover = queueEntriesSnapshot
+                                    .getOrNull(row.firstQueueIndex)?.song
+                                    ?.let { remember(it) { it.displayCoverUrl(context) } }
+                                NowPlayingQueueGroupHeader(
+                                    title = row.title,
+                                    count = row.count,
+                                    coverUrl = firstCover,
+                                    expanded = row.groupKey !in collapsedQueueGroups,
+                                    onToggle = {
+                                        collapsedQueueGroups = if (row.groupKey in collapsedQueueGroups) {
+                                            collapsedQueueGroups - row.groupKey
+                                        } else {
+                                            collapsedQueueGroups + row.groupKey
+                                        }
+                                    },
+                                    onPlayAll = {
+                                        PlayerManager.playFromQueue(row.firstQueueIndex)
+                                        dismissQueue()
+                                    }
+                                )
+                            }
+                            is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.Song -> {
+                                val entryKey = queueEntriesSnapshot
+                                    .getOrNull(row.queueIndex)?.key ?: return@items
+                                val entryPos = entryPosByKey[entryKey] ?: return@items
+                                val entry = queueEntries.getOrNull(entryPos) ?: return@items
+                                ReorderableItem(state = reorderState, key = entry.key) { isDragging ->
                             val isFavoriteSong = remember(favoriteSongs, entry.song) {
                                 favoriteSongs.any { it.sameIdentityAs(entry.song) }
                             }
@@ -1539,7 +1729,8 @@ internal fun NowPlayingQueueSheet(
                                         scaleX = rowScale
                                         scaleY = rowScale
                                     },
-                                index = index,
+                                // 显示序号用真实队列位置（分组头不占队列序号）。
+                                index = entryPos,
                                 song = entry.song,
                                 isCurrent = entry.key == currentEntryKey,
                                 isFavoriteSong = isFavoriteSong,
@@ -1547,7 +1738,7 @@ internal fun NowPlayingQueueSheet(
                                 selectionMode = selectionMode,
                                 selected = entry.key in selectedKeys,
                                 onPlay = {
-                                    PlayerManager.playFromQueue(index)
+                                    PlayerManager.playFromQueue(entryPos)
                                     dismissQueue()
                                 },
                                 onLongPress = {
@@ -1561,7 +1752,7 @@ internal fun NowPlayingQueueSheet(
                                     toggleQueueSongFavorite(entry.song, isFavoriteSong)
                                 },
                                 onRemoveFromQueue = {
-                                    PlayerManager.removeQueueItem(index)
+                                    PlayerManager.removeQueueItem(entryPos)
                                 },
                                 dragHandle = if (
                                     shouldShowNowPlayingQueueDragHandle(
@@ -1593,6 +1784,7 @@ internal fun NowPlayingQueueSheet(
                                     null
                                 }
                             )
+                        }
                         }
                     }
                 }

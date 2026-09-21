@@ -38,28 +38,50 @@ data class ResolvedBiliSong(
 
 internal fun buildBiliSongAlbum(
     cid: Long? = null,
-    bvid: String? = null
+    bvid: String? = null,
+    videoTitle: String? = null
 ): String {
     val normalizedCid = cid?.takeIf { it > 0L }
     val normalizedBvid = bvid?.trim()?.takeIf { it.isNotEmpty() }
-    if (normalizedCid == null && normalizedBvid == null) {
+    // 4th segment carries the video title for queue group headers.
+    // Parsers only read indices 1/2, and stableKey never includes the raw
+    // album string, so old and new items keep identical identity.
+    val normalizedTitle = videoTitle?.replace('|', ' ')?.trim()?.takeIf { it.isNotEmpty() }
+    if (normalizedCid == null && normalizedBvid == null && normalizedTitle == null) {
         return PlayerManager.BILI_SOURCE_TAG
     }
     return buildString {
         append(PlayerManager.BILI_SOURCE_TAG)
         append('|')
         normalizedCid?.let(::append)
-        normalizedBvid?.let {
+        if (normalizedBvid != null || normalizedTitle != null) {
             append('|')
-            append(it)
+            normalizedBvid?.let(::append)
+        }
+        if (normalizedTitle != null) {
+            append('|')
+            append(normalizedTitle)
         }
     }
+}
+
+internal fun SongItem.biliVideoTitleOrNull(): String? {
+    val isBiliSong = channelId.equals("bilibili", ignoreCase = true) ||
+        album.startsWith(PlayerManager.BILI_SOURCE_TAG, ignoreCase = true)
+    if (!isBiliSong) return null
+
+    return album
+        .split('|')
+        .getOrNull(3)
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
 }
 
 fun buildBiliPartSong(
     page: BiliClient.VideoPage,
     basicInfo: BiliClient.VideoBasicInfo,
-    coverUrl: String
+    coverUrl: String,
+    videoTitle: String? = null
 ): SongItem {
     val (title, artist) = parseBiliPartMetadata(page.part, basicInfo.ownerName)
     return SongItem(
@@ -68,7 +90,8 @@ fun buildBiliPartSong(
         artist = artist,
         album = buildBiliSongAlbum(
             cid = page.cid,
-            bvid = basicInfo.bvid
+            bvid = basicInfo.bvid,
+            videoTitle = videoTitle ?: basicInfo.title
         ),
         albumId = 0L,
         durationMs = page.durationSec * 1000L,

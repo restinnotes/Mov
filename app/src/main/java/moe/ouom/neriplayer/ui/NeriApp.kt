@@ -170,6 +170,8 @@ import moe.ouom.neriplayer.data.model.displayCoverUrl
 import moe.ouom.neriplayer.data.model.displayName
 import moe.ouom.neriplayer.data.model.sameIdentityAs
 import moe.ouom.neriplayer.data.model.stableKey
+import moe.ouom.neriplayer.core.api.bili.biliBvidOrNull
+import moe.ouom.neriplayer.core.classical.queue.expandBiliVideoPartsAfterCurrent
 import moe.ouom.neriplayer.data.local.playlist.system.FavoritesPlaylist
 import moe.ouom.neriplayer.data.playlist.usage.UsageEntry
 import moe.ouom.neriplayer.data.settings.DEFAULT_ENHANCED_ADVANCED_BLUR_RADIUS_DP
@@ -2155,6 +2157,22 @@ private fun NeriAppContent(
             "play_songs_and_open_now_playing",
             true
         )
+        // Classical：点播 B 站视频时整视频进队列。先播当前分P，后台拉取其余分P
+        // 插到当前项之后；切歌后晚到结果直接丢弃。
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+            val tapped = songs.getOrNull(index)
+            if (tapped?.biliBvidOrNull() != null) {
+                val tappedKey = tapped.stableKey()
+                scope.launch(Dispatchers.IO) {
+                    runCatching {
+                        PlayerManager.expandBiliVideoPartsAfterCurrent(
+                            tappedKey = tappedKey,
+                            client = PlayerManager.biliClient
+                        )
+                    }
+                }
+            }
+        }
     }
 
     fun playSongPreservingQueueAndOpenNowPlaying(song: SongItem) {
@@ -2173,6 +2191,20 @@ private fun NeriAppContent(
             "play_search_result_preserve_queue",
             true
         )
+        // Classical：同上，保留队列点播同样整视频进队列。
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled &&
+            song.biliBvidOrNull() != null
+        ) {
+            val tappedKey = song.stableKey()
+            scope.launch(Dispatchers.IO) {
+                runCatching {
+                    PlayerManager.expandBiliVideoPartsAfterCurrent(
+                        tappedKey = tappedKey,
+                        client = PlayerManager.biliClient
+                    )
+                }
+            }
+        }
     }
 
     fun addSongToQueueNextFromSearch(song: SongItem) {

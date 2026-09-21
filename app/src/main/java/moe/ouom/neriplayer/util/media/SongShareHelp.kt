@@ -1,6 +1,7 @@
 package moe.ouom.neriplayer.util.media
 
 import moe.ouom.neriplayer.core.player.PlayerManager
+import moe.ouom.neriplayer.core.api.bili.biliCidOrNull
 import moe.ouom.neriplayer.data.local.media.LocalSongSupport
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.data.platform.youtube.extractYouTubeMusicVideoId
@@ -34,7 +35,13 @@ internal fun buildRemoteSongShareUrl(originalSong: SongItem, queue: List<SongIte
             it.id == originalSong.id && isBilibiliSong(it)
         }
         if (videoParts.size > 1) {
-            val pageIndex = videoParts.indexOfFirst { it.album == originalSong.album }
+            // album 第 4 段可能携带视频标题（新旧格式并存）：按 cid/bvid 定位分P序号。
+            val originalCid = originalSong.biliCidOrNull()
+            val pageIndex = if (originalCid != null) {
+                videoParts.indexOfFirst { it.biliCidOrNull() == originalCid }
+            } else {
+                videoParts.indexOfFirst { it.album == originalSong.album }
+            }
             if (pageIndex != -1) {
                 return "https://www.bilibili.com/video/av${originalSong.id}/?p=${pageIndex + 1}"
             }
