@@ -73,6 +73,12 @@ class ClassicalSourceViewModel(
         val hasMore: Boolean = false
     )
 
+    data class ReplyTarget(
+        val rootRpid: String,
+        val parentRpid: String,
+        val targetUserName: String
+    )
+
     data class SourceUiState(
         val bvid: String = "",
         val aid: Long = 0L,
@@ -81,7 +87,10 @@ class ClassicalSourceViewModel(
         val comments: CommentsState = CommentsState(
             loadState = CommentsLoadState.INITIAL_LOADING
         ),
-        val replies: Map<String, ReplyThreadState> = emptyMap()
+        val replies: Map<String, ReplyThreadState> = emptyMap(),
+        val replyTarget: ReplyTarget? = null,
+        val sending: Boolean = false,
+        val sendResultEvent: String? = null
     )
 
     private val _uiState = MutableStateFlow(SourceUiState())
@@ -365,6 +374,69 @@ class ClassicalSourceViewModel(
                         hasMore = result.hasMore
                     )
                     )
+            )
+        }
+    }
+
+    fun setReplyTarget(target: ReplyTarget?) {
+        _uiState.value = _uiState.value.copy(replyTarget = target)
+    }
+
+    fun clearSendResultEvent() {
+        _uiState.value = _uiState.value.copy(sendResultEvent = null)
+    }
+
+    fun sendComment(message: String, onSuccess: () -> Unit = {}) {
+        val trimmed = message.trim()
+        if (trimmed.isBlank()) return
+        val state = _uiState.value
+        val aid = state.aid
+        if (aid <= 0L) return
+        if (state.sending) return
+        val target = state.replyTarget
+        _uiState.value = state.copy(sending = true, sendResultEvent = null)
+        viewModelScope.launch {
+            val result = repository.sendComment(
+                avid = aid,
+                message = trimmed,
+                rootRpid = target?.rootRpid,
+                parentRpid = target?.parentRpid
+            )
+            result.fold(
+                onSuccess = { newComment ->
+                    val cur = _uiState.value
+                    if (target == null) {
+                        // 新顶层评论：插在评论流最前面
+                        val updatedComments = cur.comments.copy(
+                            items = listOf(newComment) + cur.comments.items
+                        )
+                        _uiState.value = cur.copy(
+                            sending = false,
+                            replyTarget = null,
+                            comments = updatedComments,
+                            sendResultEvent = "评论发送成功"
+                        )
+                    } else {
+                        // 楼中楼回复：插在对应回复列表里
+                        val thread = cur.replies[target.rootRpid]
+                        val updatedThread = (thread ?: ReplyThreadState()).let {
+                            it.copy(items = it.items + newComment)
+                        }
+                        _uiState.value = cur.copy(
+                            sending = false,
+                            replyTarget = null,
+                            replies = cur.replies + (target.rootRpid to updatedThread),
+                            sendResultEvent = "回复发送成功"
+                        )
+                    }
+                    onSuccess()
+                },
+                onFailure = { error ->
+                    _uiState.value = _uiState.value.copy(
+                        sending = false,
+                        sendResultEvent = error.message ?: "发送失败，请稍后重试"
+                    )
+                }
             )
         }
     }

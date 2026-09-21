@@ -66,7 +66,7 @@ class ClassicalSourceViewModelTest {
         )
     }
 
-    private class FakeApi : BiliSourceApi {
+    private inner class FakeApi : BiliSourceApi {
         var infoDelayMs = 0L
         val infos = mutableMapOf<String, BiliClient.VideoBasicInfo>()
         val pages = mutableMapOf<Int, BiliClient.BiliCommentPage>()
@@ -122,6 +122,15 @@ class ClassicalSourceViewModelTest {
             page: Int,
             pageSize: Int
         ): BiliClient.BiliCommentPage = pages[page] ?: error("no replies page $page")
+
+        override suspend fun sendComment(
+            avid: Long,
+            message: String,
+            rootRpid: String?,
+            parentRpid: String?
+        ): BiliClient.BiliRichComment {
+            return comment("sent-${System.currentTimeMillis()}", message)
+        }
     }
 
     @Test
@@ -240,5 +249,46 @@ class ClassicalSourceViewModelTest {
             ClassicalSourceViewModel.CommentsLoadState.END,
             state.comments.loadState
         )
+    }
+
+    @Test
+    fun `sending root comment prepends to list`() = runTest {
+        val api = FakeApi()
+        val bvid = "BV1test0006"
+        api.addSource(bvid, listOf(comment("c1")), hasMore = false)
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
+        vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
+        assertEquals(1, vm.uiState.value.comments.items.size)
+        vm.sendComment("hello world")
+        testScheduler.advanceUntilIdle()
+        val state = vm.uiState.value
+        assertEquals(2, state.comments.items.size)
+        assertEquals("hello world", state.comments.items[0].message)
+        assertEquals("评论发送成功", state.sendResultEvent)
+    }
+
+    @Test
+    fun `replying sets target and appends to thread`() = runTest {
+        val api = FakeApi()
+        val bvid = "BV1test0007"
+        api.addSource(bvid, listOf(comment("root-1")), hasMore = false)
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
+        vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
+        vm.setReplyTarget(
+            ClassicalSourceViewModel.ReplyTarget(
+                rootRpid = "root-1",
+                parentRpid = "root-1",
+                targetUserName = "听众"
+            )
+        )
+        vm.sendComment("回复测试")
+        testScheduler.advanceUntilIdle()
+        val state = vm.uiState.value
+        assertEquals("回复发送成功", state.sendResultEvent)
+        val thread = state.replies["root-1"]
+        assertTrue(thread != null)
+        assertEquals("回复测试", thread?.items?.single()?.message)
     }
 }

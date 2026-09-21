@@ -25,4 +25,12 @@ interface BiliSourceApi {
         page: Int,
         pageSize: Int = 10
     ): BiliClient.BiliCommentPage
+
+    /** 发送新评论（或回复已有评论）。需要登录态（bili_jct/SESSDATA）。 */
+    suspend fun sendComment(
+        avid: Long,
+        message: String,
+        rootRpid: String? = null,
+        parentRpid: String? = null
+    ): BiliClient.BiliRichComment
 }

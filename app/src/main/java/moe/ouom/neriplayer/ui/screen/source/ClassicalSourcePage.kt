@@ -1,5 +1,6 @@
 package moe.ouom.neriplayer.ui.screen.source
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,12 +27,14 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.ThumbUp
@@ -59,6 +62,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -168,6 +172,16 @@ fun ClassicalCommentsScreen(
             }
         }
 
+        var commentInputText by remember { mutableStateOf("") }
+        val context = LocalContext.current
+
+        LaunchedEffect(state.sendResultEvent) {
+            state.sendResultEvent?.let { msg ->
+                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                viewModel.clearSendResultEvent()
+            }
+        }
+
         SourceCommentsContent(
             state = state,
             onSortChange = viewModel::setCommentSort,
@@ -175,9 +189,104 @@ fun ClassicalCommentsScreen(
             onRetry = viewModel::retry,
             onToggleReplies = viewModel::toggleReplies,
             onLoadMoreReplies = viewModel::loadMoreReplies,
+            onReplyTarget = viewModel::setReplyTarget,
             onSeekTo = onSeekTo,
             modifier = Modifier.weight(1f)
         )
+
+        // 底部评论/回复发送栏
+        Surface(
+            tonalElevation = 4.dp,
+            shadowElevation = 4.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                val target = state.replyTarget
+                if (target != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "回复 @${target.targetUserName}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "取消",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier
+                                .clickable { viewModel.setReplyTarget(null) }
+                                .padding(horizontal = 6.dp)
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    BasicTextField(
+                        value = commentInputText,
+                        onValueChange = { commentInputText = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        ),
+                        singleLine = false,
+                        maxLines = 4,
+                        decorationBox = { innerTextField ->
+                            if (commentInputText.isBlank()) {
+                                Text(
+                                    text = if (target != null) "回复 @${target.targetUserName}..." else "发条友善的评论...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            innerTextField()
+                        }
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    IconButton(
+                        onClick = {
+                            viewModel.sendComment(commentInputText) {
+                                commentInputText = ""
+                            }
+                        },
+                        enabled = commentInputText.isNotBlank() && !state.sending
+                    ) {
+                        if (state.sending) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "发送",
+                                tint = if (commentInputText.isNotBlank()) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outline
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -290,6 +399,7 @@ private fun SourceCommentsContent(
     onRetry: () -> Unit,
     onToggleReplies: (String) -> Unit,
     onLoadMoreReplies: (String) -> Unit,
+    onReplyTarget: (ClassicalSourceViewModel.ReplyTarget) -> Unit,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -383,6 +493,7 @@ private fun SourceCommentsContent(
                     thread = state.replies[comment.rpid],
                     onToggleReplies = { onToggleReplies(comment.rpid) },
                     onLoadMoreReplies = { onLoadMoreReplies(comment.rpid) },
+                    onReplyTarget = onReplyTarget,
                     onSeekTo = onSeekTo,
                     onPictureClick = { viewerUrl = it }
                 )
@@ -443,6 +554,7 @@ private fun CommentRow(
     thread: ClassicalSourceViewModel.ReplyThreadState?,
     onToggleReplies: () -> Unit,
     onLoadMoreReplies: () -> Unit,
+    onReplyTarget: (ClassicalSourceViewModel.ReplyTarget) -> Unit,
     onSeekTo: (Long) -> Unit,
     onPictureClick: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -540,6 +652,23 @@ private fun CommentRow(
                             )
                         }
                     }
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "回复",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier
+                            .clickable {
+                                onReplyTarget(
+                                    ClassicalSourceViewModel.ReplyTarget(
+                                        rootRpid = comment.rpid,
+                                        parentRpid = comment.rpid,
+                                        targetUserName = comment.userName.ifBlank { "匿名" }
+                                    )
+                                )
+                            }
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    )
                 }
             }
         }
@@ -595,6 +724,7 @@ private fun CommentRow(
                     ReplyRow(
                         reply = reply,
                         nowMs = nowMs,
+                        onReplyTarget = onReplyTarget,
                         onSeekTo = onSeekTo,
                         onPictureClick = onPictureClick
                     )
@@ -643,6 +773,7 @@ private fun CommentRow(
 private fun ReplyRow(
     reply: BiliClient.BiliRichComment,
     nowMs: Long,
+    onReplyTarget: (ClassicalSourceViewModel.ReplyTarget) -> Unit,
     onSeekTo: (Long) -> Unit,
     onPictureClick: (String) -> Unit,
     modifier: Modifier = Modifier
@@ -693,6 +824,25 @@ private fun ReplyRow(
                 CommentPictureGrid(
                     pictures = reply.pictures,
                     onPictureClick = onPictureClick
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "回复",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier
+                        .clickable {
+                            onReplyTarget(
+                                ClassicalSourceViewModel.ReplyTarget(
+                                    rootRpid = reply.root,
+                                    parentRpid = reply.rpid,
+                                    targetUserName = reply.userName.ifBlank { "匿名" }
+                                )
+                            )
+                        }
+                        .padding(vertical = 2.dp)
                 )
             }
         }

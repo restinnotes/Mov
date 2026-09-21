@@ -127,4 +127,13 @@ open class BiliSourceRepository(
             )
         }.getOrNull()
     }
+
+    open suspend fun sendComment(
+        avid: Long,
+        message: String,
+        rootRpid: String? = null,
+        parentRpid: String? = null
+    ): Result<BiliClient.BiliRichComment> = runCatching {
+        api.sendComment(avid, message, rootRpid, parentRpid)
+    }
 }

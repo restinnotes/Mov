@@ -35,6 +35,7 @@ import moe.ouom.neriplayer.core.di.AppContainer
 import moe.ouom.neriplayer.data.platform.bili.BiliAudioStreamInfo
 import moe.ouom.neriplayer.data.auth.bili.BiliCookieRepository
 import moe.ouom.neriplayer.data.platform.bili.prioritizeBiliStreamUrls
+import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -76,6 +77,7 @@ class BiliClient(
         private const val REPLY_URL = "https://api.bilibili.com/x/v2/reply"
         private const val REPLY_MAIN_URL = "https://api.bilibili.com/x/v2/reply/main"
         private const val REPLY_REPLY_URL = "https://api.bilibili.com/x/v2/reply/reply"
+        private const val REPLY_ADD_URL = "https://api.bilibili.com/x/v2/reply/add"
 
         // 搜索 (WBI)
         private const val SEARCH_TYPE_URL = "https://api.bilibili.com/x/web-interface/wbi/search/type"
@@ -741,6 +743,70 @@ class BiliClient(
             )
         ).optJSONObject("data") ?: JSONObject()
         parseBiliCommentPage(data, page)
+    }
+
+    /**
+     * 发送新评论（或回复某条评论）。
+     * 依赖登录态 Cookie (bili_jct / SESSDATA)。未登录返回明确错误提示。
+     */
+    override suspend fun sendComment(
+        avid: Long,
+        message: String,
+        rootRpid: String?,
+        parentRpid: String?
+    ): BiliRichComment = withContext(Dispatchers.IO) {
+        val params = mutableMapOf(
+            "type" to "1",
+            "oid" to avid.toString(),
+            "message" to message.trim()
+        )
+        if (!rootRpid.isNullOrBlank()) {
+            params["root"] = rootRpid
+        }
+        if (!parentRpid.isNullOrBlank()) {
+            params["parent"] = parentRpid
+        }
+        val jo = postFormJson(REPLY_ADD_URL, params)
+        val code = jo.optInt("code", -1)
+        if (code != 0) {
+            val msg = jo.optString("message").ifBlank { jo.optString("msg") }
+            val errorHint = when (code) {
+                -101, 1020 -> "账号未登录，请在设置中登录 Bilibili 账号"
+                12002 -> "评论区已关闭或无法评论"
+                12015 -> "发言过于频繁，请稍后再试"
+                else -> msg.ifBlank { "评论发送失败 (code=$code)" }
+            }
+            throw IOException(errorHint)
+        }
+        val data = jo.optJSONObject("data") ?: JSONObject()
+        val replyJo = data.optJSONObject("reply")
+        if (replyJo != null) {
+            parseBiliRichComment(replyJo) ?: BiliRichComment(
+                rpid = replyJo.optString("rpid"),
+                parent = parentRpid ?: "0",
+                root = rootRpid ?: "0",
+                userMid = 0L,
+                userName = "我",
+                avatarUrl = "",
+                message = message,
+                likeCount = 0L,
+                replyCount = 0,
+                ctimeSec = System.currentTimeMillis() / 1000L
+            )
+        } else {
+            BiliRichComment(
+                rpid = System.currentTimeMillis().toString(),
+                parent = parentRpid ?: "0",
+                root = rootRpid ?: "0",
+                userMid = 0L,
+                userName = "我",
+                avatarUrl = "",
+                message = message,
+                likeCount = 0L,
+                replyCount = 0,
+                ctimeSec = System.currentTimeMillis() / 1000L
+            )
+        }
     }
 
     private fun parseBiliCommentPage(data: JSONObject, page: Int): BiliCommentPage {
@@ -1545,6 +1611,29 @@ class BiliClient(
         val url = builder.build()
         val text = executeGetAsText(url)
         return JSONObject(text)
+    }
+
+    private suspend fun postFormJson(
+        baseUrl: String,
+        formParams: Map<String, String>
+    ): JSONObject = withContext(Dispatchers.IO) {
+        val cookies = getEffectiveCookies()
+        val cookieHeader = cookies.toCookieHeader()
+        val csrf = cookies["bili_jct"].orEmpty()
+        val formBodyBuilder = FormBody.Builder()
+        formParams.forEach { (k, v) -> formBodyBuilder.add(k, v) }
+        if (csrf.isNotBlank() && !formParams.containsKey("csrf")) {
+            formBodyBuilder.add("csrf", csrf)
+        }
+        val req = okhttp3.Request.Builder()
+            .url(baseUrl)
+            .header("User-Agent", DEFAULT_WEB_UA)
+            .header("Referer", REFERER)
+            .apply { headerCookieIfPresent(cookieHeader) }
+            .post(formBodyBuilder.build())
+            .build()
+        val text = http.newCall(req).executeOrThrow().use { resp -> resp.body.string() }
+        JSONObject(text)
     }
 
     private fun JSONObject.requireSuccessfulData(endpoint: String): JSONObject {
