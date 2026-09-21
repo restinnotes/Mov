@@ -1,5 +1,6 @@
 package moe.ouom.neriplayer.ui.viewmodel.tab
 
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.data.auth.common.SavedCookieAuthState
 import moe.ouom.neriplayer.data.model.SongItem
 import org.junit.Assert.assertEquals
@@ -82,18 +83,45 @@ class ExploreViewModelYouTubeGateTest {
 
     @Test
     fun `disabling selected YouTube source resets search state`() {
-        val state = ExploreUiState(
-            selectedSearchSource = SearchSource.YOUTUBE_MUSIC,
-            searching = true,
-            searchResults = listOf(result),
-            searchError = "YouTube error"
-        )
+        ClassicalLowPower.overrideForTests(false)
+        try {
+            val state = ExploreUiState(
+                selectedSearchSource = SearchSource.YOUTUBE_MUSIC,
+                searching = true,
+                searchResults = listOf(result),
+                searchError = "YouTube error"
+            )
 
-        val disabled = state.withYouTubeDisabled()
+            val disabled = state.withYouTubeDisabled()
 
-        assertEquals(SearchSource.NETEASE, disabled.selectedSearchSource)
-        assertFalse(disabled.searching)
-        assertTrue(disabled.searchResults.isEmpty())
-        assertNull(disabled.searchError)
+            assertEquals(SearchSource.NETEASE, disabled.selectedSearchSource)
+            assertFalse(disabled.searching)
+            assertTrue(disabled.searchResults.isEmpty())
+            assertNull(disabled.searchError)
+        } finally {
+            ClassicalLowPower.overrideForTests(null)
+        }
+    }
+
+    @Test
+    fun `classical falls back to bilibili instead of netease`() {
+        ClassicalLowPower.overrideForTests(true)
+        try {
+            val state = ExploreUiState(
+                selectedSearchSource = SearchSource.YOUTUBE_MUSIC,
+                searching = true,
+                searchResults = listOf(result),
+                searchError = "YouTube error"
+            )
+
+            val disabled = state.withYouTubeDisabled()
+
+            assertEquals(SearchSource.BILIBILI, disabled.selectedSearchSource)
+            assertFalse(disabled.searching)
+            assertTrue(disabled.searchResults.isEmpty())
+            assertNull(disabled.searchError)
+        } finally {
+            ClassicalLowPower.overrideForTests(null)
+        }
     }
 }

@@ -1,6 +1,7 @@
 package moe.ouom.neriplayer.data.settings
 
 import androidx.datastore.preferences.core.preferencesOf
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.core.player.model.MAX_PLAYBACK_LOUDNESS_GAIN_MB
 import moe.ouom.neriplayer.core.player.model.MAX_PLAYBACK_VOLUME_BALANCE
 import moe.ouom.neriplayer.core.player.model.MIN_PLAYBACK_PITCH
@@ -148,6 +149,10 @@ class PlaybackPreferenceSnapshotTest {
         assertFalse(snapshot.playbackHighResolutionOutputEnabled)
         assertFalse(snapshot.lyriconEnabled)
         assertTrue(snapshot.amllLyricsEnabled)
-        assertEquals(1024L * 1024 * 1024, snapshot.maxCacheSizeBytes)
+        // Flavor-aware default: official 1GB, classical 2GB for fresh installs.
+        assertEquals(
+            ClassicalLowPower.effectiveDefaultCacheBytes(),
+            snapshot.maxCacheSizeBytes
+        )
     }
 }
