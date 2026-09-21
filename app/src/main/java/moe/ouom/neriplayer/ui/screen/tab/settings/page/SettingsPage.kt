@@ -143,6 +143,19 @@ internal val SettingsHomePageGroups: List<List<SettingsPage>> = listOf(
     )
 )
 
+/**
+ * Classical 设置首页：与上游一致，仅去掉歌词页（底层歌词已关闭，留着是死入口）。
+ * 其余 Motion/流量管理等保留——用户需要这些开关（尤其动效与卡顿相关）。
+ */
+internal fun resolveSettingsHomePageGroups(): List<List<SettingsPage>> {
+    if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+        return SettingsHomePageGroups
+    }
+    return SettingsHomePageGroups.map { group ->
+        group.filterNot { it == SettingsPage.Lyrics }
+    }.filter { it.isNotEmpty() }
+}
+
 internal fun SettingsPage.backTargetPage(): SettingsPage? = when (this) {
     SettingsPage.UsbExclusive -> SettingsPage.Playback
     SettingsPage.StorageCacheDetails -> SettingsPage.Storage

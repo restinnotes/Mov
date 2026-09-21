@@ -211,6 +211,7 @@ import moe.ouom.neriplayer.ui.screen.tab.settings.page.MiuixSettingsSectionCard
 import moe.ouom.neriplayer.ui.screen.tab.settings.page.MiuixSettingsSectionIntro
 import moe.ouom.neriplayer.ui.screen.tab.settings.page.SettingsPage
 import moe.ouom.neriplayer.ui.screen.tab.settings.page.SettingsHomePageGroups
+import moe.ouom.neriplayer.ui.screen.tab.settings.page.resolveSettingsHomePageGroups
 import moe.ouom.neriplayer.ui.screen.tab.settings.page.SettingsSearchEntry
 import moe.ouom.neriplayer.ui.screen.tab.settings.page.backTargetPage
 import moe.ouom.neriplayer.ui.screen.tab.settings.page.buildSettingsSearchEntries
@@ -1279,7 +1280,7 @@ fun SettingsScreen(
                 )
             }
         }
-        SettingsHomePageGroups.forEachIndexed { groupIndex, pages ->
+        resolveSettingsHomePageGroups().forEachIndexed { groupIndex, pages ->
             item(key = "settings_group_$groupIndex") {
                 MiuixSettingsPageGroupCard(
                     pages = pages,

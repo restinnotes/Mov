@@ -1909,7 +1909,9 @@ private fun NeriAppContent(
         AdvancedGlassController(
             sdkInt = Build.VERSION.SDK_INT,
             advancedBlurEnabled = advancedBlurEnabled,
-            enhancedAdvancedBlurEnabled = enhancedAdvancedBlurEnabled,
+            // Classical 默认关闭昂贵 enhanced glass（保留简约 Material 质感与用户基础 blur 开关）。
+            enhancedAdvancedBlurEnabled = enhancedAdvancedBlurEnabled &&
+                !moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled,
             backendReady = isAdvancedGlassBackendSupported(Build.VERSION.SDK_INT),
             enhancedAdvancedBlurRadiusDp = enhancedAdvancedBlurRadiusDp,
             advancedBlurQuality = advancedBlurQuality

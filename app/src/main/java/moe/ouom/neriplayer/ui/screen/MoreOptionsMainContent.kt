@@ -315,25 +315,28 @@ private fun LyricsAndAlbumActions(
     onEnterAlbum: (AlbumSummary) -> Unit,
     snackbarHostState: SnackbarHostState
 ) {
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.lyrics_adjust_behavior)) },
-        leadingContent = { Icon(Icons.Outlined.Timer, null) },
-        modifier = Modifier.clickable(onClick = onOpenLyricBehavior)
-    )
-    ListItem(
-        headlineContent = { Text(stringResource(R.string.lyrics_font_size)) },
-        leadingContent = { Icon(Icons.Outlined.FormatSize, null) },
-        supportingContent = {
-            Text(
-                stringResource(
-                    R.string.settings_lyrics_font_scale_pair_value,
-                    (lyricFontScale * 100).roundToInt(),
-                    (translationFontScale * 100).roundToInt()
+    // Classical 底层已禁歌词：只隐藏歌词行为/字号入口，保留专辑入口。
+    if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.lyricsDisabled) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.lyrics_adjust_behavior)) },
+            leadingContent = { Icon(Icons.Outlined.Timer, null) },
+            modifier = Modifier.clickable(onClick = onOpenLyricBehavior)
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.lyrics_font_size)) },
+            leadingContent = { Icon(Icons.Outlined.FormatSize, null) },
+            supportingContent = {
+                Text(
+                    stringResource(
+                        R.string.settings_lyrics_font_scale_pair_value,
+                        (lyricFontScale * 100).roundToInt(),
+                        (translationFontScale * 100).roundToInt()
+                    )
                 )
-            )
-        },
-        modifier = Modifier.clickable(onClick = onOpenFontSize)
-    )
+            },
+            modifier = Modifier.clickable(onClick = onOpenFontSize)
+        )
+    }
     if (!isNeteaseAlbumNavigationSource(song)) return
 
     val albumName = neteaseAlbumDisplayName(song)

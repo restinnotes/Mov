@@ -148,10 +148,13 @@ internal object BiliSponsorBlockPlaybackController {
     }
 
     private fun onSettingChanged(settingEnabled: Boolean, scope: CoroutineScope) {
+        // Classical 可能含掌声/调音/演前介绍/乐章间停顿：永不自动跳过，手动 seek 不受影响。
+        val effectiveEnabled = settingEnabled &&
+            !moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled
         val loadAction = synchronized(lock) {
-            enabled = settingEnabled
+            enabled = effectiveEnabled
             val track = activeTrack
-            if (!settingEnabled) {
+            if (!effectiveEnabled) {
                 targetLoadJob?.cancel()
                 segmentLoadJob?.cancel()
                 track?.skipTracker?.reset()

@@ -28,6 +28,7 @@ Verify: hide UI **and** no network/parse/feed/tick (position flow never enters l
 
 - `AdvancedGlass` / overscroll / RenderEffect / backdrop capture: classical prefers lowest-cost
   visual path. If upstream later optimizes glass, re-audit cost before re-enabling.
+- `enhancedAdvancedBlurEnabled` 强制 OFF（保留基础 blur 开关与 Material 质感）。
 
 ## 4. YouTube prewarm — OFF unless user opts in
 
@@ -55,6 +56,14 @@ Verify: hide UI **and** no network/parse/feed/tick (position flow never enters l
 ## 7. Sync — upstream only
 
 - GitHub/WebDAV sync follows upstream schema. No classical sync tables/fields.
+
+## 8. 古典曲目完整性（非 AI）
+
+- Bilibili SponsorBlock 自动跳段：classical 强制 OFF
+  （掌声/调音/演前介绍/乐章间停顿不得自动跳过；手动 seek 不受影响）。
+- 首页推荐卡（Trending/雷达/每日推荐）：新安装默认关闭，用户可在设置-个性化中再开。
+- 设置首页：仅隐藏歌词页（死入口）；Motion/流量管理等开关全部保留。
+- 更多选项 sheet：隐藏歌词行为/字号入口，保留专辑入口。
 
 ## 8. Flavor
 

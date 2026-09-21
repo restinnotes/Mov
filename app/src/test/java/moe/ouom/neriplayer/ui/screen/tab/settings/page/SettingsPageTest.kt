@@ -1,6 +1,7 @@
 package moe.ouom.neriplayer.ui.screen.tab.settings.page
 
 import android.content.Context
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.data.settings.AutoSettingsSchema
 import moe.ouom.neriplayer.data.settings.generated.AutoSettingsMetadata
 import moe.ouom.neriplayer.data.settings.generated.AutoSettingsSections
@@ -37,6 +38,34 @@ class SettingsPageTest {
     fun usbExclusiveBackTargetReturnsPlaybackPage() {
         assertEquals(SettingsPage.Playback, SettingsPage.UsbExclusive.backTargetPage())
         assertEquals(null, SettingsPage.Playback.backTargetPage())
+    }
+
+    @Test
+    fun `classical hides only the dead lyrics settings page`() {
+        ClassicalLowPower.overrideForTests(true)
+        try {
+            val pages = resolveSettingsHomePageGroups().flatten()
+            assertTrue(pages.none { it == SettingsPage.Lyrics })
+            // Motion / traffic / everything else stays: user needs those switches.
+            assertTrue(pages.contains(SettingsPage.Motion))
+            assertTrue(pages.contains(SettingsPage.TrafficManagement))
+            assertTrue(pages.contains(SettingsPage.Playback))
+        } finally {
+            ClassicalLowPower.overrideForTests(null)
+        }
+    }
+
+    @Test
+    fun `official keeps the full settings home`() {
+        ClassicalLowPower.overrideForTests(false)
+        try {
+            assertEquals(
+                SettingsHomePageGroups.flatten().toSet(),
+                resolveSettingsHomePageGroups().flatten().toSet()
+            )
+        } finally {
+            ClassicalLowPower.overrideForTests(null)
+        }
     }
 
     @Test
