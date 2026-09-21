@@ -207,6 +207,8 @@ import moe.ouom.neriplayer.ui.viewmodel.tab.YouTubeMusicPlaylist
 import moe.ouom.neriplayer.ui.viewmodel.tab.shouldLoadExploreSearchMore
 import moe.ouom.neriplayer.ui.util.currentWindowWidthDp
 import moe.ouom.neriplayer.ui.util.rememberSongDisplayCoverUrl
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
+import moe.ouom.neriplayer.ui.util.safePageIndex
 import moe.ouom.neriplayer.ui.util.ClipboardCopyResult
 import moe.ouom.neriplayer.ui.util.copyPlainTextSafely
 import moe.ouom.neriplayer.ui.haptic.HapticIconButton
@@ -224,8 +226,21 @@ private val ExploreSearchFieldShape = RoundedCornerShape(16.dp)
 
 internal fun exploreSearchSourceDisplayOrder(
     isInternational: Boolean,
-    youtubeEnabled: Boolean
+    youtubeEnabled: Boolean,
+    classical: Boolean = false
 ): List<SearchSource> {
+    // Classical：Bilibili 默认首位；聚合是独立模式，不占 provider 位。
+    if (classical) {
+        return if (youtubeEnabled) {
+            listOf(
+                SearchSource.BILIBILI,
+                SearchSource.YOUTUBE_MUSIC,
+                SearchSource.LINK_RECOGNITION
+            )
+        } else {
+            listOf(SearchSource.BILIBILI, SearchSource.LINK_RECOGNITION)
+        }
+    }
     return if (!youtubeEnabled) {
         listOf(SearchSource.NETEASE, SearchSource.BILIBILI, SearchSource.LINK_RECOGNITION)
     } else if (isInternational) {
@@ -434,7 +449,11 @@ fun ExploreScreen(
     val youtubeEnabled by AppContainer.settingsRepo.youtubeEnabledFlow
         .collectAsStateWithLifecycle(initialValue = YouTubeFeatureGate.isEnabled())
     val orderedSearchSources = remember(isInternational, youtubeEnabled) {
-        exploreSearchSourceDisplayOrder(isInternational, youtubeEnabled)
+        exploreSearchSourceDisplayOrder(
+            isInternational,
+            youtubeEnabled,
+            classical = ClassicalLowPower.enabled
+        )
     }
     val initialSearchPage = remember(orderedSearchSources, ui.selectedSearchSource) {
         orderedSearchSources.indexOf(ui.selectedSearchSource).takeIf { it >= 0 } ?: 0
@@ -511,7 +530,8 @@ fun ExploreScreen(
     }
 
     LaunchedEffect(Unit) {
-        if (ui.playlists.isEmpty()) vm.loadHighQuality()
+        // Classical 默认不展示网易推荐：不预拉网易精品歌单（省后台流量与启动开销）。
+        if (!ClassicalLowPower.enabled && ui.playlists.isEmpty()) vm.loadHighQuality()
     }
 
     LaunchedEffect(ui.selectedSearchSource, orderedSearchSources) {
@@ -520,6 +540,13 @@ fun ExploreScreen(
             ?: return@LaunchedEffect
         if (pagerState.currentPage != targetPage) {
             pagerState.scrollToPage(targetPage)
+        }
+    }
+
+    LaunchedEffect(orderedSearchSources.size) {
+        val count = orderedSearchSources.size
+        if (count > 0 && pagerState.currentPage >= count) {
+            pagerState.scrollToPage(safePageIndex(pagerState.currentPage, count))
         }
     }
 
@@ -534,9 +561,9 @@ fun ExploreScreen(
         }
     }
 
-    // 国际化模式默认跳到 YouTube Music 标签
+    // 国际化模式默认跳到 YouTube Music 标签（Classical 走默认搜索偏好，不抢）。
     LaunchedEffect(isInternational, youtubeEnabled) {
-        if (isInternational && youtubeEnabled) {
+        if (isInternational && youtubeEnabled && !ClassicalLowPower.enabled) {
             if (ui.selectedSearchSource != SearchSource.YOUTUBE_MUSIC) {
                 vm.setSearchSource(SearchSource.YOUTUBE_MUSIC)
             }
@@ -817,58 +844,119 @@ fun ExploreScreen(
                         )
                     }
                     Spacer(Modifier.height(8.dp))
-                    AdvancedGlassSurface(
-                        role = AdvancedGlassRole.ScreenTopTab,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(ExplorePrimaryTabShape),
-                        shape = ExplorePrimaryTabShape
-                    ) {
-                        PrimaryScrollableTabRow(
-                            selectedTabIndex = pagerState.currentPage,
-                            edgePadding = 0.dp,
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.primary
+                    if (!ui.aggregateEnabled && orderedSearchSources.size > 1) {
+                        AdvancedGlassSurface(
+                            role = AdvancedGlassRole.ScreenTopTab,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(ExplorePrimaryTabShape),
+                            shape = ExplorePrimaryTabShape
                         ) {
-                            orderedSearchSources.forEachIndexed { index, source ->
-                                Tab(
-                                    selected = pagerState.currentPage == index,
-                                    onClick = {
-                                        scope.launch {
-                                            pagerState.animateScrollToPage(index)
+                            PrimaryScrollableTabRow(
+                                selectedTabIndex = safePageIndex(
+                                    pagerState.currentPage,
+                                    orderedSearchSources.size
+                                ),
+                                edgePadding = 0.dp,
+                                containerColor = Color.Transparent,
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ) {
+                                orderedSearchSources.forEachIndexed { index, source ->
+                                    Tab(
+                                        selected = safePageIndex(
+                                            pagerState.currentPage,
+                                            orderedSearchSources.size
+                                        ) == index,
+                                        onClick = {
+                                            scope.launch {
+                                                pagerState.animateScrollToPage(index)
+                                            }
+                                        },
+                                        text = {
+                                            Text(
+                                                text = searchSourceLabel(source),
+                                                maxLines = 1,
+                                                softWrap = false,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
                                         }
-                                    },
-                                    text = {
-                                        Text(
-                                            text = searchSourceLabel(source),
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                )
+                                    )
+                                }
                             }
                         }
                     }
-                    ExploreSearchTypeBar(
-                        source = searchTypeBarSource,
-                        selectedNeteaseSearchType = ui.selectedNeteaseSearchType,
-                        selectedYouTubeSearchType = ui.selectedYouTubeMusicSearchType,
-                        onNeteaseSearchTypeClick = vm::setNeteaseSearchType,
-                        onYouTubeSearchTypeClick = vm::setYouTubeMusicSearchType,
-                        selectedAlpha = tagChipSelectedAlpha,
-                        unselectedAlpha = tagChipUnselectedAlpha,
-                        borderAlpha = tagChipBorderAlpha
-                    )
+                    if (!ui.aggregateEnabled) {
+                        ExploreSearchTypeBar(
+                            source = searchTypeBarSource,
+                            selectedNeteaseSearchType = ui.selectedNeteaseSearchType,
+                            selectedYouTubeSearchType = ui.selectedYouTubeMusicSearchType,
+                            onNeteaseSearchTypeClick = vm::setNeteaseSearchType,
+                            onYouTubeSearchTypeClick = vm::setYouTubeMusicSearchType,
+                            selectedAlpha = tagChipSelectedAlpha,
+                            unselectedAlpha = tagChipUnselectedAlpha,
+                            borderAlpha = tagChipBorderAlpha
+                        )
+                    }
+                    if (ClassicalLowPower.enabled) {
+                        Spacer(Modifier.height(8.dp))
+                        ClassicalSearchModeRow(
+                            aggregateEnabled = ui.aggregateEnabled,
+                            onAggregateChange = vm::setAggregateEnabled,
+                            defaultMode = ui.defaultSearchMode,
+                            onDefaultModeChange = vm::setDefaultSearchMode,
+                            youtubeAvailable = youtubeEnabled
+                        )
+                    }
                 }
 
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            ) { page ->
-                val currentSource = orderedSearchSources[page]
+            // 单源与聚合共用的歌曲点击（含 B 站分 P 选择）。
+            val handleSearchSongClick: (SongItem, List<SongItem>, Int) -> Unit =
+                { song, results, songListIndex ->
+                    if (shouldShowBiliPartsPicker(song)) {
+                        scope.launch {
+                            try {
+                                val info = vm.getVideoInfoByAvid(song.id)
+                                if (info.pages.size <= 1) {
+                                    onSongClick(results, songListIndex)
+                                } else {
+                                    partsInfo = info
+                                    clickedSongCoverUrl = song.coverUrl ?: ""
+                                    showPartsSheet = true
+                                }
+                            } catch (e: Exception) {
+                                NPLogger.e(
+                                    "ExploreScreen",
+                                    composeResources.getString(R.string.search_error),
+                                    e
+                                )
+                            }
+                        }
+                    } else {
+                        onSongClick(results, songListIndex)
+                    }
+                }
+
+            if (ClassicalLowPower.enabled && ui.aggregateEnabled) {
+                ClassicalAggregateSearchResults(
+                    aggregate = ui.aggregate,
+                    youtubeAvailable = youtubeEnabled,
+                    onLoadMoreBili = vm::loadMoreSearchResults,
+                    onSongTap = handleSearchSongClick,
+                    onPlaySong = onSongPlayPreservingQueue,
+                    onYouTubeCreatorClick = onYouTubeCreatorClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+            } else {
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) { page ->
+                    val currentSource = orderedSearchSources.getOrNull(page)
+                        ?: return@HorizontalPager
                 if (searchQuery.isNotEmpty()) {
                     if (shouldRenderExploreSearchResults(page, pagerState.currentPage)) {
                         when {
@@ -928,24 +1016,7 @@ fun ExploreScreen(
                                                 offlineMode = offlineMode,
                                                 snackbarHostState = snackbarHostState,
                                                 onClick = {
-                                                    if (shouldShowBiliPartsPicker(song)) {
-                                                        scope.launch {
-                                                            try {
-                                                                val info = vm.getVideoInfoByAvid(song.id)
-                                                                if (info.pages.size <= 1) {
-                                                                    onSongClick(ui.searchResults, songListIndex)
-                                                                } else {
-                                                                    partsInfo = info
-                                                                    clickedSongCoverUrl = song.coverUrl ?: ""
-                                                                    showPartsSheet = true
-                                                                }
-                                                            } catch (e: Exception) {
-                                                                NPLogger.e("ExploreScreen", composeResources.getString(R.string.search_error), e)
-                                                            }
-                                                        }
-                                                    } else {
-                                                        onSongClick(ui.searchResults, songListIndex)
-                                                    }
+                                                    handleSearchSongClick(song, ui.searchResults, songListIndex)
                                                 },
                                                 onPlayNow = { onSongPlayPreservingQueue(song) },
                                                 onPlayNext = { onSongPlayNext(song) },
@@ -1041,19 +1112,27 @@ fun ExploreScreen(
                 } else {
                     when (currentSource) {
                         SearchSource.NETEASE -> {
-                            NeteaseDefaultContent(
-                                gridState = gridState,
-                                ui = ui,
-                                tagKeys = tagKeys,
-                                tagLabels = tagLabels,
-                                favoriteKeys = favoriteKeys,
-                                vm = vm,
-                                onPlay = onPlay,
-                                tagChipSelectedAlpha = tagChipSelectedAlpha,
-                                tagChipUnselectedAlpha = tagChipUnselectedAlpha,
-                                tagChipBorderAlpha = tagChipBorderAlpha,
-                                isTabletLayout = isTabletLayout
-                            )
+                            // Classical 默认不展示网易推荐：干净空态（搜当前源 + 历史 + 聚合 hint）。
+                            if (ClassicalLowPower.enabled) {
+                                ClassicalEmptySearchState(
+                                    aggregateEnabled = ui.aggregateEnabled,
+                                    onEnableAggregate = { vm.setAggregateEnabled(true) }
+                                )
+                            } else {
+                                NeteaseDefaultContent(
+                                    gridState = gridState,
+                                    ui = ui,
+                                    tagKeys = tagKeys,
+                                    tagLabels = tagLabels,
+                                    favoriteKeys = favoriteKeys,
+                                    vm = vm,
+                                    onPlay = onPlay,
+                                    tagChipSelectedAlpha = tagChipSelectedAlpha,
+                                    tagChipUnselectedAlpha = tagChipUnselectedAlpha,
+                                    tagChipBorderAlpha = tagChipBorderAlpha,
+                                    isTabletLayout = isTabletLayout
+                                )
+                            }
                         }
                         SearchSource.BILIBILI -> {
                             Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -1080,6 +1159,7 @@ fun ExploreScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

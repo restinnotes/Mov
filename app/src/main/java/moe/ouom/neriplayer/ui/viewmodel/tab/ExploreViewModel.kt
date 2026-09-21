@@ -29,9 +29,12 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.api.bili.BiliClient
@@ -41,6 +44,7 @@ import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicCreatorSummary
 import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicSearchFilter
 import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicSearchResult
 import moe.ouom.neriplayer.core.api.youtube.YouTubeMusicSearchResultType
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.core.di.AppContainer
 import moe.ouom.neriplayer.core.logging.NPLogger
 import moe.ouom.neriplayer.core.player.PlayerManager.biliClient
@@ -52,6 +56,10 @@ import moe.ouom.neriplayer.data.platform.youtube.YouTubeFeatureGate
 import moe.ouom.neriplayer.data.platform.youtube.buildYouTubeMusicMediaUri
 import moe.ouom.neriplayer.data.platform.youtube.stableYouTubeMusicId
 import moe.ouom.neriplayer.data.platform.youtube.youtubeMusicThumbnailUrl
+import moe.ouom.neriplayer.data.search.ClassicalDefaultSearchMode
+import moe.ouom.neriplayer.data.search.ClassicalSearchPreference
+import moe.ouom.neriplayer.data.search.normalizeDefaultSearchMode
+import moe.ouom.neriplayer.util.search.RemotePlatformSearchRanker
 import moe.ouom.neriplayer.util.search.SearchTextMatcher
 import moe.ouom.neriplayer.util.search.searchValues
 import org.json.JSONObject
@@ -186,7 +194,14 @@ data class ExploreUiState(
     val isNeteaseLoggedIn: Boolean = false,
     val ytMusicPlaylists: List<YouTubeMusicPlaylist> = emptyList(),
     val ytMusicPlaylistsLoading: Boolean = false,
-    val ytMusicPlaylistsError: String? = null
+    val ytMusicPlaylistsError: String? = null,
+    /**
+     * Classical 聚合搜索：开启后 search/loadMore 走多 provider 并发聚合，
+     * aggregate 持有各源独立分页状态；单源结果字段保持不动以兼容 official flavor。
+     */
+    val aggregateEnabled: Boolean = false,
+    val aggregate: AggregateSearchState = AggregateSearchState(),
+    val defaultSearchMode: ClassicalDefaultSearchMode = ClassicalDefaultSearchMode.BILIBILI
 )
 
 internal fun isNeteaseExploreSearchAvailable(authState: SavedCookieAuthState): Boolean {
@@ -206,8 +221,14 @@ internal fun ExploreUiState.withNeteaseAuthRequired(error: String): ExploreUiSta
 
 internal fun ExploreUiState.withYouTubeDisabled(): ExploreUiState {
     val youtubeWasSelected = selectedSearchSource == SearchSource.YOUTUBE_MUSIC
+    // Classical 默认回 Bilibili（不再回 Netease）；official 保持旧行为。
+    val fallbackSource = if (ClassicalLowPower.enabled) {
+        SearchSource.BILIBILI
+    } else {
+        SearchSource.NETEASE
+    }
     return copy(
-        selectedSearchSource = if (youtubeWasSelected) SearchSource.NETEASE else selectedSearchSource,
+        selectedSearchSource = if (youtubeWasSelected) fallbackSource else selectedSearchSource,
         searching = if (youtubeWasSelected) false else searching,
         searchResults = if (youtubeWasSelected) emptyList() else searchResults,
         searchItems = if (youtubeWasSelected) emptyList() else searchItems,
@@ -322,6 +343,7 @@ private data class ExploreSearchFetchResult(
 class ExploreViewModel(application: Application) : AndroidViewModel(application) {
     private val app = application
     private val neteaseRepo = AppContainer.neteaseCookieRepo
+    private val classicalSearchPref = ClassicalSearchPreference(app)
     private var highQualityLoadJob: Job? = null
     private var searchJob: Job? = null
     private var searchMoreJob: Job? = null
@@ -362,6 +384,63 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 }
             }
         }
+        // Classical 默认搜索：干净安装 Bilibili，可切 AGGREGATE/YOUTUBE。
+        viewModelScope.launch {
+            val stored = classicalSearchPref.defaultModeFlow.first()
+            applyDefaultSearchMode(stored)
+        }
+    }
+
+    private fun applyDefaultSearchMode(stored: ClassicalDefaultSearchMode) {
+        if (!ClassicalLowPower.enabled) return
+        val mode = normalizeDefaultSearchMode(stored.name, youtubeEnabled)
+        val initial = resolveInitialSearchMode(
+            classical = true,
+            defaultMode = mode,
+            youtubeAvailable = youtubeEnabled
+        )
+        _uiState.value = _uiState.value.copy(defaultSearchMode = mode)
+        when (initial) {
+            is ExploreSearchMode.Aggregate -> {
+                _uiState.value = _uiState.value.copy(aggregateEnabled = true)
+            }
+            is ExploreSearchMode.Provider -> {
+                if (_uiState.value.selectedSearchSource != initial.source) {
+                    _uiState.value = _uiState.value.copy(
+                        selectedSearchSource = initial.source,
+                        searching = false,
+                        searchResults = emptyList(),
+                        searchItems = emptyList(),
+                        searchHasMore = false,
+                        searchPage = 0,
+                        searchKeyword = "",
+                        searchDisplayQuery = "",
+                        searchError = null
+                    )
+                }
+            }
+        }
+    }
+
+    /** 用户切换默认搜索：持久化并立即生效（Classical 设置面）。 */
+    fun setDefaultSearchMode(mode: ClassicalDefaultSearchMode) {
+        viewModelScope.launch {
+            classicalSearchPref.setDefaultMode(mode)
+            applyDefaultSearchMode(mode)
+        }
+    }
+
+    /** 聚合开关（Classical）：各 provider 独立分页，失败隔离。 */
+    fun setAggregateEnabled(enabled: Boolean) {
+        if (!ClassicalLowPower.enabled) return
+        if (enabled == _uiState.value.aggregateEnabled) return
+        searchJob?.cancel()
+        searchMoreJob?.cancel()
+        invalidateSearchRequest()
+        _uiState.value = _uiState.value.copy(
+            aggregateEnabled = enabled,
+            aggregate = AggregateSearchState()
+        )
     }
 
     /** 设置当前搜索源 */
@@ -451,8 +530,19 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
                 searchPage = 0,
                 searchKeyword = "",
                 searchDisplayQuery = "",
-                searchError = null
+                searchError = null,
+                aggregate = AggregateSearchState()
             )
+            return
+        }
+        // Classical 聚合模式：多 provider 并发，各自独立分页、错误隔离。
+        if (ClassicalLowPower.enabled && _uiState.value.aggregateEnabled) {
+            val requestVersion = beginAggregateRequest(apiKeyword, matchQuery)
+            NPLogger.d(
+                TAG,
+                "aggregate search start: request=$requestVersion, keyword=$apiKeyword"
+            )
+            searchAggregate(apiKeyword, matchQuery, requestVersion)
             return
         }
         val source = _uiState.value.selectedSearchSource
@@ -471,6 +561,11 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
 
     fun loadMoreSearchResults() {
         val state = _uiState.value
+        // Classical 聚合模式：各 provider 独立翻页。
+        if (ClassicalLowPower.enabled && state.aggregateEnabled) {
+            loadMoreAggregateSearch()
+            return
+        }
         val source = state.selectedSearchSource
         if (source == SearchSource.NETEASE && !isNeteaseSearchAllowed()) {
             clearNeteaseSearchForAuthRequired()
@@ -608,15 +703,150 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         val searchPage = withContext(Dispatchers.IO) {
             biliClient.searchVideos(keyword = keyword, page = page)
         }
-        val songs = rankExploreSongSearchResults(
+        // Bilibili 远端排序：用平台字段（description/tag/hit_columns/typeid）先 rank，
+        // 排完再转 SongItem，保证顺序不丢。详见 RemotePlatformSearchRanker。
+        val songs = RemotePlatformSearchRanker.rankBiliVideos(
             query = matchQuery,
-            songs = searchPage.items.map { it.toSongItem() }
-        )
+            items = searchPage.items
+        ).map { it.toSongItem() }
         return ExploreSearchFetchResult(
             items = songs.map { ExploreSearchResult.Song(it) },
             page = searchPage.page,
             hasMore = searchPage.page < searchPage.numPages && searchPage.items.isNotEmpty()
         )
+    }
+
+    private fun searchAggregate(keyword: String, matchQuery: String, requestVersion: Long) {
+        _uiState.value = _uiState.value.copy(
+            aggregate = AggregateSearchState(
+                keyword = keyword,
+                matchQuery = matchQuery,
+                searching = true,
+                bili = AggregateProviderState(loading = true),
+                youtube = AggregateProviderState(loading = youtubeEnabled)
+            )
+        )
+        searchJob = viewModelScope.launch {
+            supervisorScope {
+                val biliDeferred = async {
+                    runCatching { fetchBilibiliSearchPage(keyword, matchQuery, page = 1) }
+                }
+                val youtubeDeferred = async {
+                    if (!youtubeEnabled) {
+                        null
+                    } else {
+                        runCatching { fetchYouTubeSearchItems(keyword, matchQuery) }
+                    }
+                }
+                val biliOutcome = biliDeferred.await()
+                updateAggregateStateIfCurrent(requestVersion) { agg ->
+                    agg.copy(
+                        bili = biliOutcome.fold(
+                            onSuccess = { result ->
+                                AggregateProviderState(
+                                    items = result.items,
+                                    page = result.page,
+                                    hasMore = result.hasMore
+                                )
+                            },
+                            onFailure = { e ->
+                                NPLogger.e(TAG, "aggregate Bilibili failed: keyword=$keyword", e)
+                                AggregateProviderState(
+                                    error = searchErrorMessage(
+                                        SearchSource.BILIBILI,
+                                        e as? Exception ?: Exception(e.message)
+                                    )
+                                )
+                            }
+                        )
+                    )
+                }
+                val youtubeOutcome = youtubeDeferred.await()
+                if (youtubeOutcome != null) {
+                    updateAggregateStateIfCurrent(requestVersion) { agg ->
+                        agg.copy(
+                            youtube = youtubeOutcome.fold(
+                                onSuccess = { items ->
+                                    // YouTube 搜索无分页：单页结果。
+                                    AggregateProviderState(items = items, page = 1, hasMore = false)
+                                },
+                                onFailure = { e ->
+                                    NPLogger.e(TAG, "aggregate YouTube failed: keyword=$keyword", e)
+                                    AggregateProviderState(
+                                        error = searchErrorMessage(
+                                            SearchSource.YOUTUBE_MUSIC,
+                                            e as? Exception ?: Exception(e.message)
+                                        )
+                                    )
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+            updateAggregateStateIfCurrent(requestVersion) { agg -> agg.copy(searching = false) }
+        }
+    }
+
+    /** 聚合翻页：仅 Bilibili 有分页；YouTube 单页无更多。 */
+    private fun loadMoreAggregateSearch() {
+        val state = _uiState.value
+        val agg = state.aggregate
+        if (agg.keyword.isBlank() || agg.searching) return
+        val bili = agg.bili
+        if (bili.loading || !bili.hasMore) return
+        val nextPage = bili.page + 1
+        val keyword = agg.keyword
+        val matchQuery = agg.matchQuery.ifBlank { keyword }
+        val requestVersion = searchRequestVersion
+        _uiState.value = state.copy(
+            aggregate = agg.copy(bili = bili.copy(loading = true, error = null))
+        )
+        searchMoreJob = viewModelScope.launch {
+            try {
+                val result = fetchBilibiliSearchPage(keyword, matchQuery, nextPage)
+                updateAggregateStateIfCurrent(requestVersion) { aggState ->
+                    aggState.copy(
+                        bili = aggState.bili.copy(
+                            items = mergeAggregateProviderItems(aggState.bili.items, result.items),
+                            page = result.page,
+                            hasMore = result.hasMore,
+                            loading = false
+                        )
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                NPLogger.e(TAG, "aggregate Bilibili load more failed: page=$nextPage", e)
+                updateAggregateStateIfCurrent(requestVersion) { aggState ->
+                    aggState.copy(
+                        bili = aggState.bili.copy(
+                            loading = false,
+                            error = searchErrorMessage(SearchSource.BILIBILI, e),
+                            hasMore = true
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun beginAggregateRequest(keyword: String, matchQuery: String): Long {
+        searchJob?.cancel()
+        searchMoreJob?.cancel()
+        return invalidateSearchRequest()
+    }
+
+    private inline fun updateAggregateStateIfCurrent(
+        requestVersion: Long,
+        transform: (AggregateSearchState) -> AggregateSearchState
+    ) {
+        if (searchRequestVersion != requestVersion) {
+            NPLogger.d(TAG, "drop stale aggregate update: request=$requestVersion")
+            return
+        }
+        _uiState.value = _uiState.value.copy(aggregate = transform(_uiState.value.aggregate))
     }
 
     private fun beginSearchRequest(keyword: String, displayQuery: String): Long {
@@ -1272,32 +1502,40 @@ class ExploreViewModel(application: Application) : AndroidViewModel(application)
         return buildBiliPartSong(page, basicInfo, coverUrl)
     }
 
+    private suspend fun fetchYouTubeSearchItems(
+        keyword: String,
+        matchQuery: String
+    ): List<ExploreSearchResult> {
+        val searchType = _uiState.value.selectedYouTubeMusicSearchType
+        return when (searchType) {
+            YouTubeExploreSearchType.SONG,
+            YouTubeExploreSearchType.VIDEO -> {
+                val songs = withContext(Dispatchers.IO) {
+                    AppContainer.youtubeMusicClient.search(
+                        query = keyword,
+                        limit = YOUTUBE_MUSIC_SEARCH_LIMIT,
+                        filter = requireNotNull(searchType.filter)
+                    ).map { it.toSongItem(app) }
+                }.let { rankExploreSongSearchResults(matchQuery, it) }
+                songs.map(ExploreSearchResult::Song)
+            }
+            YouTubeExploreSearchType.CREATOR -> {
+                withContext(Dispatchers.IO) {
+                    AppContainer.youtubeMusicClient.searchCreators(
+                        query = keyword,
+                        limit = YOUTUBE_MUSIC_SEARCH_LIMIT
+                    )
+                }.map(ExploreSearchResult::YouTubeCreator)
+            }
+        }
+    }
+
     private fun searchYouTubeMusic(keyword: String, matchQuery: String, requestVersion: Long) {
         if (!youtubeEnabled) return
         val searchType = _uiState.value.selectedYouTubeMusicSearchType
         searchJob = viewModelScope.launch {
             try {
-                val items = when (searchType) {
-                    YouTubeExploreSearchType.SONG,
-                    YouTubeExploreSearchType.VIDEO -> {
-                        val songs = withContext(Dispatchers.IO) {
-                            AppContainer.youtubeMusicClient.search(
-                                query = keyword,
-                                limit = YOUTUBE_MUSIC_SEARCH_LIMIT,
-                                filter = requireNotNull(searchType.filter)
-                            ).map { it.toSongItem(app) }
-                        }.let { rankExploreSongSearchResults(matchQuery, it) }
-                        songs.map(ExploreSearchResult::Song)
-                    }
-                    YouTubeExploreSearchType.CREATOR -> {
-                        withContext(Dispatchers.IO) {
-                            AppContainer.youtubeMusicClient.searchCreators(
-                                query = keyword,
-                                limit = YOUTUBE_MUSIC_SEARCH_LIMIT
-                            )
-                        }.map(ExploreSearchResult::YouTubeCreator)
-                    }
-                }
+                val items = fetchYouTubeSearchItems(keyword, matchQuery)
                 if (!isSearchRequestCurrent(requestVersion, SearchSource.YOUTUBE_MUSIC)) return@launch
                 NPLogger.d(
                     TAG,
