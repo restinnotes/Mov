@@ -50,13 +50,19 @@ data class BiliAudioStreamInfo(
 internal fun isBiliStreamHost(host: String): Boolean {
     val normalized = host.trim().lowercase()
     if (normalized.isBlank()) return false
-    return normalized.contains("bilivideo.") || normalized.endsWith(".mountaintoys.cn")
+    return normalized.contains("bilivideo.") ||
+        normalized.endsWith(".mountaintoys.cn") ||
+        normalized.startsWith("upos-") ||
+        normalized.contains("akamaized.net")
 }
 
-internal fun isBiliStreamUrl(url: String): Boolean =
-    runCatching { URI(url).host.orEmpty() }
-        .getOrNull()
-        ?.let(::isBiliStreamHost) == true
+internal fun isBiliStreamUrl(url: String): Boolean {
+    val host = runCatching { URI(url).host.orEmpty() }.getOrDefault("")
+    val lower = url.lowercase()
+    return isBiliStreamHost(host) ||
+        lower.contains("/upgcxcode/") ||
+        lower.contains("bilivideo")
+}
 
 private fun scoreBiliStreamUrl(url: String): Int {
     val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
@@ -64,6 +70,7 @@ private fun scoreBiliStreamUrl(url: String): Int {
         host.startsWith("upos-") && host.contains("bilivideo.") -> 3
         host.contains("bilivideo.") -> 2
         host.endsWith(".mountaintoys.cn") -> 1
+        host.startsWith("upos-") || host.contains("akamaized.net") -> 1
         else -> 0
     }
 }

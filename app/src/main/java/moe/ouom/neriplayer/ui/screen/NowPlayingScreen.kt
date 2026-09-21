@@ -3176,27 +3176,6 @@ fun NowPlayingScreen(
                                     modifier = Modifier.size(nowPlayingTopActionIconSize)
                                 )
                             }
-                            if (showMoreOptions && currentSong != null) {
-                                MoreOptionsSheet(
-                                    viewModel = nowPlayingViewModel,
-                                    originalSong = currentSong!!,
-                                    queue = displayedQueue,
-                                    displayedLyrics = lyrics,
-                                    displayedTranslatedLyrics = translatedLyrics,
-                                    hasPhoneticLyrics = phoneticLyrics.isNotEmpty(),
-                                    onDismiss = { showMoreOptions = false },
-                                    onShowSongDetails = { detailSong = it },
-                                    onEnterAlbum = onEnterAlbum,
-                                    onNavigateUp = onNavigateUp,
-                                    snackbarHostState = snackbarHostState,
-                                    lyricFontScalePage = LyricFontScalePage.COVER,
-                                    lyricFontScales = lyricFontScales,
-                                    onLyricFontScaleChange = onLyricFontScaleChange,
-                                    currentPlaybackAudioInfo = currentPlaybackAudioInfo,
-                                    onShowQualitySwitch = { showQualitySwitchDialog = true },
-                                    offlineMode = offlineMode
-                                )
-                            }
                         }
                     }
 
@@ -3855,6 +3834,29 @@ fun NowPlayingScreen(
                         )
                     }
                 }
+            }
+
+            // 更多选项弹窗（根层级挂载，Classical 竖屏与通用布局均可正常呼出）
+            if (showMoreOptions && currentSong != null) {
+                MoreOptionsSheet(
+                    viewModel = nowPlayingViewModel,
+                    originalSong = currentSong!!,
+                    queue = displayedQueue,
+                    displayedLyrics = lyrics,
+                    displayedTranslatedLyrics = translatedLyrics,
+                    hasPhoneticLyrics = phoneticLyrics.isNotEmpty(),
+                    onDismiss = { showMoreOptions = false },
+                    onShowSongDetails = { detailSong = it },
+                    onEnterAlbum = onEnterAlbum,
+                    onNavigateUp = onNavigateUp,
+                    snackbarHostState = snackbarHostState,
+                    lyricFontScalePage = LyricFontScalePage.COVER,
+                    lyricFontScales = lyricFontScales,
+                    onLyricFontScaleChange = onLyricFontScaleChange,
+                    currentPlaybackAudioInfo = currentPlaybackAudioInfo,
+                    onShowQualitySwitch = { showQualitySwitchDialog = true },
+                    offlineMode = offlineMode
+                )
             }
 
             // 音量控制弹窗
