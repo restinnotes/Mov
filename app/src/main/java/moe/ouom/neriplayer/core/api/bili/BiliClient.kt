@@ -666,7 +666,7 @@ class BiliClient(
         avid: Long,
         sort: Int,
         page: Int,
-        pageSize: Int = 20
+        pageSize: Int
     ): BiliCommentPage = withContext(Dispatchers.IO) {
         val data = getJson(
             REPLY_URL,
@@ -689,7 +689,7 @@ class BiliClient(
         avid: Long,
         rootRpid: String,
         page: Int,
-        pageSize: Int = 10
+        pageSize: Int
     ): BiliCommentPage = withContext(Dispatchers.IO) {
         val data = getJson(
             REPLY_DIALOG_URL,

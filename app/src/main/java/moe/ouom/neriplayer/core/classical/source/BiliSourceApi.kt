@@ -16,13 +16,13 @@ interface BiliSourceApi {
         avid: Long,
         sort: Int,
         page: Int,
-        pageSize: Int
+        pageSize: Int = 20
     ): BiliClient.BiliCommentPage
 
     suspend fun getCommentRepliesByAvid(
         avid: Long,
         rootRpid: String,
         page: Int,
-        pageSize: Int
+        pageSize: Int = 10
     ): BiliClient.BiliCommentPage
 }
