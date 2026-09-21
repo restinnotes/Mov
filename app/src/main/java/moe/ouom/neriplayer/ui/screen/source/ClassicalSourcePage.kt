@@ -1,5 +1,6 @@
 package moe.ouom.neriplayer.ui.screen.source
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,12 +10,16 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -57,6 +62,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -72,89 +78,104 @@ import moe.ouom.neriplayer.ui.viewmodel.source.ClassicalSourceViewModel
 
 private const val SEEK_TAG = "SOURCE_SEEK"
 
-/** Source page tabs. Public: the player opens it straight on COMMENTS. */
-enum class SourceTab { INTRO, COMMENTS }
-
 /**
- * Classical Source page: [简介][评论] behind fixed tabs.
- * Comments follow the BBPlayer look (separate page feel, dividers, relative
- * time, inline emotes, picture grid, reply preview bubble, 精选/最新):
- * reimplemented in Compose, no shared code.
- * Receives no playback position flow; timestamp taps only call [onSeekTo].
+ * 1:1 BBPlayer 风格评论区页面。
+ *
+ * 结构：
+ * - 顶栏：返回箭头 (←) + "评论区" 标题 (粗体 18sp) + [精选] / [最新] 切换
+ * - 列表项 (1:1 BBPlayer CommentItem)：
+ *   - 左侧 40dp 圆形头像
+ *   - 右侧：
+ *     - 用户名 (14sp 粗体 secondary) + 相对时间 (刚刚/x分钟前/x小时前/昨天/日期)
+ *     - 正文 (15sp, 行高 22sp) + 行内表情 + 可点击时间戳
+ *     - 图片九宫格 (100x100，点击弹窗大图预览)
+ *     - 操作栏：点赞 (拇指图标 16dp + 点赞数) + 回复 (气泡图标 16dp + 回复数)
+ *     - 回复预览气泡 (surfaceVariant 底色，12dp 圆角，8dp 内边距)：
+ *       最多展示 3 条 "<粗体作者>: 内容"，超出展示 "查看全部 X 条回复" (primary 强调色)
+ *     - 点击展开完整楼中楼回复
+ *   - 评论项之间带浅色细分割线 (HorizontalDivider)
  */
 @Composable
-fun ClassicalSourcePage(
+fun ClassicalCommentsScreen(
     viewModel: ClassicalSourceViewModel,
     onSeekTo: (Long) -> Unit,
-    modifier: Modifier = Modifier,
-    startTab: SourceTab = SourceTab.INTRO,
-    onBack: (() -> Unit)? = null
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedTab by remember(startTab) { mutableStateOf(startTab) }
 
-    Column(modifier = modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.statusBars)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+    ) {
+        // BBPlayer elevated Appbar
+        Surface(
+            tonalElevation = 2.dp,
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            if (onBack != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "返回"
+                        contentDescription = "返回",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                Text(
+                    text = "评论区",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                Row(
+                    modifier = Modifier.padding(end = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    FilterChip(
+                        selected = state.commentSort == ClassicalSourceViewModel.CommentSort.FEATURED,
+                        onClick = {
+                            viewModel.setCommentSort(ClassicalSourceViewModel.CommentSort.FEATURED)
+                        },
+                        label = { Text("精选", fontSize = 12.sp) },
+                        modifier = Modifier.height(32.dp)
+                    )
+                    FilterChip(
+                        selected = state.commentSort == ClassicalSourceViewModel.CommentSort.LATEST,
+                        onClick = {
+                            viewModel.setCommentSort(ClassicalSourceViewModel.CommentSort.LATEST)
+                        },
+                        label = {
+                            Text("最新", fontSize = 12.sp)
+                        },
+                        modifier = Modifier.height(32.dp)
                     )
                 }
             }
-            Text(
-                text = if (selectedTab == SourceTab.INTRO) "简介" else "评论",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(start = 4.dp)
-            )
         }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = selectedTab == SourceTab.INTRO,
-                onClick = { selectedTab = SourceTab.INTRO },
-                label = { Text("简介") }
-            )
-            FilterChip(
-                selected = selectedTab == SourceTab.COMMENTS,
-                onClick = { selectedTab = SourceTab.COMMENTS },
-                label = {
-                    Text(
-                        if (state.comments.items.isEmpty()) {
-                            "评论"
-                        } else {
-                            "评论 ${state.comments.items.size}"
-                        }
-                    )
-                }
-            )
-        }
-        when (selectedTab) {
-            SourceTab.INTRO -> SourceIntroContent(
-                introState = state.intro,
-                modifier = Modifier.weight(1f)
-            )
-            SourceTab.COMMENTS -> SourceCommentsContent(
-                state = state,
-                onSortChange = viewModel::setCommentSort,
-                onLoadMore = viewModel::loadMore,
-                onRetry = viewModel::retry,
-                onToggleReplies = viewModel::toggleReplies,
-                onLoadMoreReplies = viewModel::loadMoreReplies,
-                onSeekTo = onSeekTo,
-                modifier = Modifier.weight(1f)
-            )
-        }
+
+        SourceCommentsContent(
+            state = state,
+            onSortChange = viewModel::setCommentSort,
+            onLoadMore = viewModel::loadMore,
+            onRetry = viewModel::retry,
+            onToggleReplies = viewModel::toggleReplies,
+            onLoadMoreReplies = viewModel::loadMoreReplies,
+            onSeekTo = onSeekTo,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 

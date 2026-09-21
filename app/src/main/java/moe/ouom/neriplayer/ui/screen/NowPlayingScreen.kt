@@ -323,7 +323,7 @@ import moe.ouom.neriplayer.ui.viewmodel.NowPlayingViewModel
 import moe.ouom.neriplayer.data.model.NeteaseArtistSummary
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.ui.viewmodel.tab.AlbumSummary
-import moe.ouom.neriplayer.ui.screen.source.ClassicalSourcePage
+import moe.ouom.neriplayer.ui.screen.source.ClassicalCommentsScreen
 import moe.ouom.neriplayer.ui.viewmodel.source.ClassicalSourceViewModel
 import moe.ouom.neriplayer.ui.haptic.HapticFeedbackEffect
 import moe.ouom.neriplayer.ui.haptic.HapticFilledIconButton
@@ -2179,11 +2179,8 @@ fun NowPlayingScreen(
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
-    // Classical Source 页：播放器评论气泡进入（默认评论 tab），返回键/左滑关闭。
-    var showSourceScreen by remember { mutableStateOf(false) }
-    var sourceInitialTab by remember {
-        mutableStateOf(moe.ouom.neriplayer.ui.screen.source.SourceTab.INTRO)
-    }
+    // Classical 评论区页面（BBPlayer 风格）：由播放器次控栏评论图标进入。
+    var showCommentsScreen by remember { mutableStateOf(false) }
     // Bilibili 来源预加载：切歌即在后台拉简介 + 第一页评论，不阻塞播放。
     val sourceSongKey = currentSong?.stableKey()
     LaunchedEffect(sourceSongKey) {
@@ -3163,30 +3160,6 @@ fun NowPlayingScreen(
                                 )
                             }
 
-                            // Classical 评论气泡：仅 B 站曲目可用，直达 Source 评论页。
-                            if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
-                                val commentBvid = currentSong?.biliBvidOrNull()
-                                HapticIconButton(
-                                    onClick = {
-                                        sourceInitialTab = moe.ouom.neriplayer.ui.screen.source.SourceTab.COMMENTS
-                                        showSourceScreen = true
-                                    },
-                                    enabled = commentBvid != null,
-                                    modifier = Modifier.size(nowPlayingTopActionButtonSize)
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.ChatBubbleOutline,
-                                        contentDescription = "评论",
-                                        modifier = Modifier.size(nowPlayingTopActionIconSize),
-                                        tint = if (commentBvid != null) {
-                                            MaterialTheme.colorScheme.onSurface
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                        }
-                                    )
-                                }
-                            }
-
                             HapticIconButton(
                                 onClick = { showMoreOptions = true },
                                 modifier = Modifier.size(nowPlayingTopActionButtonSize)
@@ -3834,11 +3807,53 @@ fun NowPlayingScreen(
                         }
                     }
                 } else {
-                    Column(
-                        modifier = contentModifier,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        content = mainColumnContent
-                    )
+                    if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled && !isLandscape) {
+                        moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
+                            currentSong = currentSong,
+                            coverUrl = currentCoverUrl,
+                            isPlaying = isPlaying,
+                            isFavorite = isFavorite,
+                            onToggleFavorite = {
+                                val song = currentSong ?: return@BBPlayerPlaybackPortraitContent
+                                val willFav = nextFavoriteStateAfterTap(isFavorite)
+                                launchWithLocalSyncWarning(
+                                    song = song,
+                                    actionLabel = composeResources.getString(R.string.favorite_add),
+                                    warnForLocalSync = willFav
+                                ) {
+                                    favOverride = willFav
+                                    PlayerManager.toggleCurrentFavorite()
+                                }
+                            },
+                            playbackDurationMs = durationMs,
+                            onSeekTo = { pos -> PlayerManager.seekTo(pos) },
+                            onPrev = { PlayerManager.previous() },
+                            onNext = { PlayerManager.next() },
+                            onTogglePlayPause = { PlayerManager.togglePlayPause() },
+                            shuffleEnabled = shuffleEnabled,
+                            onToggleShuffle = { PlayerManager.setShuffle(!shuffleEnabled) },
+                            repeatMode = repeatMode,
+                            onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
+                            onOpenComments = { showCommentsScreen = true },
+                            onOpenQueue = { showQueueSheet = true },
+                            onOpenMoreOptions = { showMoreOptions = true },
+                            onNavigateUp = onNavigateUp,
+                            onOpenArtist = openCurrentArtist,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    detectVerticalDragGestures { _, dragAmount ->
+                                        if (dragAmount > 60) onNavigateUp()
+                                    }
+                                }
+                        )
+                    } else {
+                        Column(
+                            modifier = contentModifier,
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            content = mainColumnContent
+                        )
+                    }
                 }
             }
 
@@ -3984,28 +3999,19 @@ fun NowPlayingScreen(
                 )
             }
         }
-                // Classical Source 页：播放器评论气泡进入（默认评论 tab）。
-                // 队列仍走上游 Queue Sheet，不进 pager。
+                // Classical 评论区页面（1:1 BBPlayer 风格）：由播放器次控栏评论图标进入。
                 AnimatedVisibility(
-                    visible = showSourceScreen && moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled,
+                    visible = showCommentsScreen && moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled,
                     enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                     exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    BackHandler { showSourceScreen = false }
-                    ClassicalSourcePage(
+                    BackHandler { showCommentsScreen = false }
+                    moe.ouom.neriplayer.ui.screen.source.ClassicalCommentsScreen(
                         viewModel = sourceViewModel,
                         onSeekTo = { positionMs -> PlayerManager.seekTo(positionMs) },
-                        startTab = sourceInitialTab,
-                        onBack = { showSourceScreen = false },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.background)
-                            .pointerInput(Unit) {
-                                detectHorizontalDragGestures { _, dragAmount ->
-                                    if (dragAmount < -25) showSourceScreen = false
-                                }
-                            }
+                        onBack = { showCommentsScreen = false },
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
     }
