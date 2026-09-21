@@ -108,7 +108,11 @@ ARCHIVE_ONLY: Zen protocol, AI fixtures, assistant scenarios/goldens, metadata s
   tables and preserves playlists/favorites/history/settings/downloads. Fresh installs create v19
   directly. Downgrade 18→15 is never attempted.
 
-## 7. Rebuild deltas (target)
+## 7. Rebuild deltas (measured 2026-09-21, HEAD cb1ef3c7)
 
-- Before: 213 files, +36k/-397, 165 new files, Room v18.
-- After (target): ~40 files, <4k insertions, Room v19 (upstream schema + drops), no AI/Library/Timeline/Workbench.
+- Before (3fedb88d vs ac7bdea4): 213 files, +36362/-397, 165 new files, Room v18.
+- After (classical-clean vs upstream/master): 58 files, +7877/-277, 31 new files, Room v19.
+  - Of the +7877, 3505 are generated `19.json` Room schema export (upstream tracks
+    schemas the same way); docs/tools add ~590. **Hand-written main-source delta:
+    36 files, +2844/-258.**
+- 14 commits on top of upstream/master (7 low-power cherry-picks + 7 clean rebuild commits).
