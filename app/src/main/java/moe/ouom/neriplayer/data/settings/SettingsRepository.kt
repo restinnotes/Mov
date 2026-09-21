@@ -48,6 +48,7 @@ import moe.ouom.neriplayer.core.player.model.normalizePlaybackPitch
 import moe.ouom.neriplayer.core.player.model.normalizePlaybackSpeed
 import moe.ouom.neriplayer.core.player.model.normalizePlaybackVolumeBalance
 import moe.ouom.neriplayer.data.settings.generated.AutoSettingsRepository
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.ksp.annotations.AutoSettingSpec
 import java.util.Locale
 
@@ -409,7 +410,8 @@ class SettingsRepository(private val context: Context) {
     val maxCacheSizeBytesFlow: Flow<Long> =
         dataStoreSettingFlow {
             CacheSizePolicy.normalizeCacheSizeBytes(
-                it[SettingsKeys.MAX_CACHE_SIZE_BYTES] ?: (1024L * 1024 * 1024)
+                it[SettingsKeys.MAX_CACHE_SIZE_BYTES]
+                    ?: ClassicalLowPower.effectiveDefaultCacheBytes()
             )
         }
 

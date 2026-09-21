@@ -304,7 +304,7 @@ internal fun PlayerManager.releaseMediaCache() {
 
 internal fun PlayerManager.initializeImpl(
     app: Application,
-    maxCacheSize: Long = 1024L * 1024 * 1024,
+    maxCacheSize: Long = moe.ouom.neriplayer.core.classical.ClassicalLowPower.effectiveDefaultCacheBytes(),
     startupPlaybackPreferences: PlaybackPreferenceSnapshot? = null,
     restoredStateSnapshot: RestoredPlayerStateSnapshot? = null
 ) {

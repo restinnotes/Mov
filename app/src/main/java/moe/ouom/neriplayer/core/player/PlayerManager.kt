@@ -65,6 +65,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.api.bili.BiliClient
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.core.api.search.MusicPlatform
 import moe.ouom.neriplayer.core.api.search.SongSearchInfo
 import moe.ouom.neriplayer.core.di.AppContainer
@@ -700,7 +701,7 @@ object PlayerManager {
     internal val neteaseLyricsCache = android.util.LruCache<Long, NeteaseLyricsCacheEntry>(20)
 
     // 当前缓存上限, 设置变化后会据此重建缓存
-    internal var currentCacheSize: Long = 1024L * 1024 * 1024
+    internal var currentCacheSize: Long = ClassicalLowPower.effectiveDefaultCacheBytes()
 
     var sleepTimerManager: SleepTimerManager = createSleepTimerManager()
         internal set
@@ -2515,7 +2516,7 @@ object PlayerManager {
     internal fun cancelPendingPauseRequest(resetVolumeToFull: Boolean = false) =
         this.cancelPendingPauseRequestImpl(resetVolumeToFull)
 
-    fun initialize(app: Application, maxCacheSize: Long = 1024L * 1024 * 1024) =
+    fun initialize(app: Application, maxCacheSize: Long = ClassicalLowPower.effectiveDefaultCacheBytes()) =
         initializeImpl(app, maxCacheSize)
 
     internal fun initializePreloaded(

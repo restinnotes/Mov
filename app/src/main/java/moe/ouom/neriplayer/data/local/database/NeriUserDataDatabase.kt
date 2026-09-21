@@ -94,7 +94,7 @@ import moe.ouom.neriplayer.data.local.database.entity.PlatformPlaylistCacheTrack
         PlatformPlaylistCacheTrackEntity::class,
         PlatformPlaylistCacheTrackArtistEntity::class
     ],
-    version = 15,
+    version = 19,
     exportSchema = true
 )
 internal abstract class NeriUserDataDatabase : RoomDatabase() {
@@ -162,7 +162,11 @@ internal abstract class NeriUserDataDatabase : RoomDatabase() {
                 MIGRATION_11_12,
                 MIGRATION_12_13,
                 MIGRATION_13_14,
-                MIGRATION_14_15
+                MIGRATION_14_15,
+                MIGRATION_15_19,
+                MIGRATION_16_19,
+                MIGRATION_17_19,
+                MIGRATION_18_19
             ).build()
         }
 
@@ -1003,6 +1007,50 @@ internal abstract class NeriUserDataDatabase : RoomDatabase() {
                     "ALTER TABLE `download_snapshot_metadata` " +
                         "ADD COLUMN `romanized_lyric_path` TEXT"
                 )
+            }
+        }
+
+        /**
+         * Classical clean rebuild: upstream schema is v15. Pre-rebuild AI experiment builds
+         * shipped v16-v18 with 9 classical metadata tables + playback_marker. Clean builds
+         * use v19 (upstream tables only); these migrations drop experiment tables if present
+         * and preserve playlists/favorites/history/settings/downloads. Fresh installs create
+         * v19 directly. No silent full-database wipe.
+         */
+        private fun dropClassicalExperimentTables(db: SupportSQLiteDatabase) {
+            db.execSQL("DROP TABLE IF EXISTS `classical_metadata_snapshot`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_entity`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_work`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_recording`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_track_link`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_credit`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_parse_queue`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_smart_collection`")
+            db.execSQL("DROP TABLE IF EXISTS `classical_field_override`")
+            db.execSQL("DROP TABLE IF EXISTS `playback_marker`")
+        }
+
+        val MIGRATION_15_19: Migration = object : Migration(15, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                dropClassicalExperimentTables(db)
+            }
+        }
+
+        val MIGRATION_16_19: Migration = object : Migration(16, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                dropClassicalExperimentTables(db)
+            }
+        }
+
+        val MIGRATION_17_19: Migration = object : Migration(17, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                dropClassicalExperimentTables(db)
+            }
+        }
+
+        val MIGRATION_18_19: Migration = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                dropClassicalExperimentTables(db)
             }
         }
 

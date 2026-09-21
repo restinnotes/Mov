@@ -38,6 +38,7 @@ import moe.ouom.neriplayer.core.player.model.PlaybackEqualizerPresetId
 import moe.ouom.neriplayer.core.player.model.PlaybackSoundConfig
 import moe.ouom.neriplayer.core.player.model.decodePlaybackEqualizerBandLevels
 import moe.ouom.neriplayer.core.player.model.encodePlaybackEqualizerBandLevels
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
 import moe.ouom.neriplayer.core.player.model.normalizePlaybackLoudnessGainMb
 import moe.ouom.neriplayer.core.player.model.normalizePlaybackPitch
 import moe.ouom.neriplayer.core.player.model.normalizePlaybackSpeed
@@ -156,7 +157,7 @@ data class PlaybackPreferenceSnapshot(
     val qqMusicLyricDefaultOffsetMs: Long = DEFAULT_QQ_MUSIC_LYRIC_OFFSET_MS,
     val lyriconEnabled: Boolean = false,
     val amllLyricsEnabled: Boolean = true,
-    val maxCacheSizeBytes: Long = DEFAULT_MAX_CACHE_SIZE_BYTES
+    val maxCacheSizeBytes: Long = ClassicalLowPower.effectiveDefaultCacheBytes()
 ) {
     fun sanitized(): PlaybackPreferenceSnapshot {
         return copy(
@@ -508,7 +509,8 @@ internal fun Preferences.toPlaybackPreferenceSnapshot(): PlaybackPreferenceSnaps
         lyriconEnabled = this[SettingsKeys.LYRICON_ENABLED] ?: false,
         amllLyricsEnabled = this[SettingsKeys.AMLL_LYRICS_ENABLED] ?: true,
         maxCacheSizeBytes =
-            this[SettingsKeys.MAX_CACHE_SIZE_BYTES] ?: DEFAULT_MAX_CACHE_SIZE_BYTES
+            this[SettingsKeys.MAX_CACHE_SIZE_BYTES]
+                ?: ClassicalLowPower.effectiveDefaultCacheBytes()
     ).sanitized()
 }
 
@@ -656,7 +658,7 @@ private fun readCachedPlaybackPreferenceSnapshot(context: Context): PlaybackPref
         amllLyricsEnabled = prefs.getBoolean(PLAYBACK_AMLL_LYRICS_ENABLED_KEY, true),
         maxCacheSizeBytes = prefs.getLong(
             PLAYBACK_MAX_CACHE_SIZE_BYTES_KEY,
-            DEFAULT_MAX_CACHE_SIZE_BYTES
+            ClassicalLowPower.effectiveDefaultCacheBytes()
         )
     ).sanitized()
 }

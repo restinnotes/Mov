@@ -45,6 +45,13 @@ object ClassicalLowPower {
     /** Classical 默认 2GB 流式缓存（仅用于新安装默认值，不改已有用户设置）。 */
     const val DEFAULT_CLASSICAL_CACHE_BYTES = 2L * 1024L * 1024L * 1024L
 
+    /** Upstream 默认 1GB；official flavor 沿用。 */
+    const val DEFAULT_UPSTREAM_CACHE_BYTES = 1024L * 1024L * 1024L
+
+    /** 新安装默认值：classical→2GB，official→1GB。已存用户设置不受影响。 */
+    fun effectiveDefaultCacheBytes(): Long =
+        if (enabled) DEFAULT_CLASSICAL_CACHE_BYTES else DEFAULT_UPSTREAM_CACHE_BYTES
+
     internal fun overrideForTests(enabled: Boolean?) {
         testOverride = enabled
     }
