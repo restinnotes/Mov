@@ -54,6 +54,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -316,6 +318,8 @@ import moe.ouom.neriplayer.ui.viewmodel.NowPlayingViewModel
 import moe.ouom.neriplayer.data.model.NeteaseArtistSummary
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.ui.viewmodel.tab.AlbumSummary
+import moe.ouom.neriplayer.ui.screen.source.ClassicalSourcePage
+import moe.ouom.neriplayer.ui.viewmodel.source.ClassicalSourceViewModel
 import moe.ouom.neriplayer.ui.haptic.HapticFeedbackEffect
 import moe.ouom.neriplayer.ui.haptic.HapticFilledIconButton
 import moe.ouom.neriplayer.ui.haptic.HapticFloatingActionButton
@@ -1839,6 +1843,7 @@ fun NowPlayingScreen(
     resolvedCoverUrl: String? = null,
     visualCoverUrl: String? = null,
     playbackSongKey: String? = null,
+    sourceViewModel: ClassicalSourceViewModel = viewModel(),
 ) {
     val coverLyricFontScale = lyricFontScales.coverLyric
     val coverTranslationFontScale = lyricFontScales.coverTranslation
@@ -1978,6 +1983,15 @@ fun NowPlayingScreen(
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    // Classical Source 负一屏：PLAYER 右滑进入，仅 classical flavor。
+    var showSourceScreen by remember { mutableStateOf(false) }
+    // Bilibili 来源预加载：切歌即在后台拉简介 + 第一页评论，不阻塞播放。
+    val sourceSongKey = currentSong?.stableKey()
+    LaunchedEffect(sourceSongKey) {
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+            sourceViewModel.onSongChanged(currentSong)
+        }
+    }
     var showSleepTimerDialog by remember { mutableStateOf(false) }
     var showCoverPageSourceBadge by remember { mutableStateOf(false) }
     var animateCoverPageSourceBadge by remember { mutableStateOf(false) }
@@ -2718,6 +2732,15 @@ fun NowPlayingScreen(
                     contentModifier = contentModifier.pointerInput(lyrics) {
                         detectHorizontalDragGestures { _, dragAmount ->
                             if (dragAmount < -20) onShowLyricsScreenChange(true)
+                        }
+                    }
+                }
+
+                // Classical: 歌词已关闭，右滑进入 Source 负一屏（简介/评论）。
+                if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                    contentModifier = contentModifier.pointerInput(Unit) {
+                        detectHorizontalDragGestures { _, dragAmount ->
+                            if (dragAmount > 25) showSourceScreen = true
                         }
                     }
                 }
@@ -3738,6 +3761,28 @@ fun NowPlayingScreen(
                 )
             }
         }
+                // Classical Source 负一屏：PLAYER 右滑进入，仅 classical flavor。
+                // 复用原歌词横滑区域；队列仍走上游 Queue Sheet，不进 pager。
+                AnimatedVisibility(
+                    visible = showSourceScreen && moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled,
+                    enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+                    exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    BackHandler { showSourceScreen = false }
+                    ClassicalSourcePage(
+                        viewModel = sourceViewModel,
+                        onSeekTo = { positionMs -> PlayerManager.seekTo(positionMs) },
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures { _, dragAmount ->
+                                    if (dragAmount < -25) showSourceScreen = false
+                                }
+                            }
+                    )
+                }
     }
 }
 }

@@ -72,6 +72,10 @@ class BiliClient(
         // 基础信息 (WBI 可用)
         private const val VIEW_URL = "https://api.bilibili.com/x/web-interface/wbi/view"
 
+        // 评论 (plain JSON, cookie)
+        private const val REPLY_URL = "https://api.bilibili.com/x/v2/reply"
+        private const val REPLY_DIALOG_URL = "https://api.bilibili.com/x/v2/reply/dialog"
+
         // 搜索 (WBI)
         private const val SEARCH_TYPE_URL = "https://api.bilibili.com/x/web-interface/wbi/search/type"
 
@@ -275,7 +279,9 @@ class BiliClient(
         val ownerFace: String,
         val stats: VideoStats,
         val pages: List<VideoPage>,
-        val ugcSeason: UgcSeason? = null
+        val ugcSeason: UgcSeason? = null,
+        /** 发布时间（秒级时间戳，view 接口 pubdate/ctime）。 */
+        val pubdateSec: Long = 0L
     )
 
     data class UgcSeason(
@@ -303,7 +309,41 @@ class BiliClient(
         val coverUrl: String,
         val durationSec: Int,
         val play: Long?,
-        val pubdate: Long?
+        val pubdate: Long?,
+        /** B 站搜索返回的分区 id：客户端排序只做展示参考，不做过滤。 */
+        val typeid: Int = 0,
+        val typename: String = "",
+        /** 搜索返回的 tag/description 原文，仅当 hitColumns 标明命中时才参与客户端排序。 */
+        val tag: String = "",
+        val description: String = "",
+        /** B 站标明的关键词命中字段（title/description/tag/author…），指导客户端排序权重。 */
+        val hitColumns: List<String> = emptyList()
+    )
+
+    /**
+     * Full comment record for the Classical paged Comments surface.
+     * A comment without timestamp still renders in Comments; timestamp
+     * extraction is a separate UI projection step, never a filter.
+     */
+    data class BiliRichComment(
+        val rpid: String,
+        /** Direct parent rpid; "0" when this comment is itself a root. */
+        val parent: String,
+        /** Root rpid of the thread; "0"/self when this comment is a root. */
+        val root: String,
+        val userMid: Long,
+        val userName: String,
+        val avatarUrl: String,
+        val message: String,
+        val likeCount: Long,
+        val replyCount: Int,
+        val ctimeSec: Long
+    )
+
+    data class BiliCommentPage(
+        val items: List<BiliRichComment>,
+        val hasMore: Boolean,
+        val nextPage: Int
     )
 
     data class SearchVideoPage(
@@ -605,7 +645,9 @@ class BiliClient(
                 ownerFace = ownerFace,
                 stats = stats,
                 pages = pages,
-                ugcSeason = ugcSeason
+                ugcSeason = ugcSeason,
+                pubdateSec = data.optLong("pubdate", 0L).takeIf { it > 0L }
+                    ?: data.optLong("ctime", 0L)
             )
         }
 
@@ -614,6 +656,87 @@ class BiliClient(
 
     suspend fun getVideoStatsByAvid(avid: Long): VideoStats =
         getVideoBasicInfoByAvid(avid).stats
+
+    /**
+     * Paged full comments for the Classical Comments surface.
+     * sort: 2 = hot (Bili default), 0 = latest. page starts at 1.
+     * No timestamp filtering here: every normal comment is returned.
+     */
+    suspend fun getCommentPageByAvid(
+        avid: Long,
+        sort: Int,
+        page: Int,
+        pageSize: Int = 20
+    ): BiliCommentPage = withContext(Dispatchers.IO) {
+        val data = getJson(
+            REPLY_URL,
+            mapOf(
+                "type" to "1",
+                "oid" to avid.toString(),
+                "sort" to sort.toString(),
+                "pn" to page.coerceAtLeast(1).toString(),
+                "ps" to pageSize.coerceIn(1, 20).toString()
+            )
+        ).optJSONObject("data") ?: JSONObject()
+        parseBiliCommentPage(data, page)
+    }
+
+    /**
+     * On-demand replies of one root comment thread.
+     * page starts at 1. Returns only replies under [rootRpid].
+     */
+    suspend fun getCommentRepliesByAvid(
+        avid: Long,
+        rootRpid: String,
+        page: Int,
+        pageSize: Int = 10
+    ): BiliCommentPage = withContext(Dispatchers.IO) {
+        val data = getJson(
+            REPLY_DIALOG_URL,
+            mapOf(
+                "type" to "1",
+                "oid" to avid.toString(),
+                "root" to rootRpid,
+                "pn" to page.coerceAtLeast(1).toString(),
+                "ps" to pageSize.coerceIn(1, 20).toString()
+            )
+        ).optJSONObject("data") ?: JSONObject()
+        parseBiliCommentPage(data, page)
+    }
+
+    private fun parseBiliCommentPage(data: JSONObject, page: Int): BiliCommentPage {
+        val replies = data.optJSONArray("replies") ?: JSONArray()
+        val items = buildList(replies.length()) {
+            for (index in 0 until replies.length()) {
+                parseBiliRichComment(replies.optJSONObject(index) ?: continue)?.let { add(it) }
+            }
+        }
+        val pageInfo = data.optJSONObject("page") ?: JSONObject()
+        val num = pageInfo.optInt("num", page)
+        val size = pageInfo.optInt("size", items.size)
+        val count = pageInfo.optLong("count", (num * size).toLong())
+        val hasMore = num.toLong() * size < count
+        return BiliCommentPage(items = items, hasMore = hasMore, nextPage = page + 1)
+    }
+
+    private fun parseBiliRichComment(reply: JSONObject): BiliRichComment? {
+        val rpid = reply.opt("rpid")?.toString()?.trim().orEmpty()
+        val message = reply.optJSONObject("content")?.optString("message").orEmpty()
+        if (rpid.isBlank() || message.isBlank()) return null
+        val member = reply.optJSONObject("member") ?: JSONObject()
+        return BiliRichComment(
+            rpid = rpid,
+            parent = reply.opt("parent")?.toString()?.trim().orEmpty().ifBlank { "0" },
+            root = reply.opt("root")?.toString()?.trim().orEmpty().ifBlank { "0" },
+            userMid = member.optString("mid").toLongOrNull() ?: 0L,
+            userName = member.optString("uname"),
+            avatarUrl = ensureHttps(member.optString("face")),
+            message = message,
+            likeCount = reply.optLong("like"),
+            replyCount = reply.optInt("rcount"),
+            ctimeSec = reply.optLong("ctime")
+        )
+    }
 
     // 搜索 //
 
@@ -649,6 +772,11 @@ class BiliClient(
             val durationSec = parseDurationToSeconds(it.optString("duration"))
             val play = it.optLongOrNull("play")
             val pubdate = it.optLongOrNull("pubdate")
+            val hitColumns = it.optJSONArray("hit_columns")?.let { arr ->
+                buildList(arr.length()) {
+                    for (j in 0 until arr.length()) add(arr.optString(j, ""))
+                }.filter { column -> column.isNotBlank() }
+            } ?: emptyList()
 
             items += SearchVideoItem(
                 aid = aid,
@@ -660,7 +788,12 @@ class BiliClient(
                 coverUrl = cover,
                 durationSec = durationSec,
                 play = play,
-                pubdate = pubdate
+                pubdate = pubdate,
+                typeid = it.optInt("typeid", 0),
+                typename = it.optString("typename").orEmpty(),
+                tag = it.optString("tag").orEmpty(),
+                description = it.optString("description").orEmpty(),
+                hitColumns = hitColumns
             )
         }
         SearchVideoPage(
