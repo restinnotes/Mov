@@ -150,6 +150,15 @@ class NeriPlayerApplication : Application() {
                 // 长期不开 App 时没有任何前台流程会去续期, 靠这个周期任务把会话保活
                 YouTubeAuthRotationWorker.schedulePeriodicRotation(this)
             }
+            // Classical 新安装默认关闭普通推荐卡片（雷达/Trending/每日推荐等），只做一次，可再开。
+            AppContainer.launchBackgroundIo {
+                runCatching {
+                    moe.ouom.neriplayer.core.classical.ClassicalHomeDefaults.applyIfNeeded(
+                        this@NeriPlayerApplication,
+                        AppContainer.settingsRepo
+                    )
+                }
+            }
 
             // 初始化全局下载管理器
             GlobalDownloadManager.initialize(this)
