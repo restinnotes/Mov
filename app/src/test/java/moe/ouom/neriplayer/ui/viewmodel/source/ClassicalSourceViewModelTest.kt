@@ -70,6 +70,7 @@ class ClassicalSourceViewModelTest {
         var infoDelayMs = 0L
         val infos = mutableMapOf<String, BiliClient.VideoBasicInfo>()
         val pages = mutableMapOf<Int, BiliClient.BiliCommentPage>()
+        val pagesBySort = mutableMapOf<Int, BiliClient.BiliCommentPage>()
 
         fun addSource(
             bvid: String,
@@ -108,7 +109,12 @@ class ClassicalSourceViewModelTest {
             sort: Int,
             page: Int,
             pageSize: Int
-        ): BiliClient.BiliCommentPage = pages[page] ?: error("no page $page")
+        ): BiliClient.BiliCommentPage {
+            if (page == 1) {
+                pagesBySort[sort]?.let { return it }
+            }
+            return pages[page] ?: error("no page $page")
+        }
 
         override suspend fun getCommentRepliesByAvid(
             avid: Long,
@@ -202,6 +208,37 @@ class ClassicalSourceViewModelTest {
         testScheduler.advanceUntilIdle()
         assertTrue(
             vm.uiState.value.comments.items.size <= ClassicalSourceViewModel.MAX_COMMENT_ITEMS
+        )
+    }
+
+    @Test
+    fun `switching sort reloads first page independently`() = runTest {
+        val api = FakeApi()
+        val bvid = "BV1test0005"
+        api.addSource(bvid, listOf(comment("hot-1")), hasMore = true)
+        api.pagesBySort[0] = BiliClient.BiliCommentPage(
+            items = listOf(comment("latest-1")),
+            hasMore = false,
+            nextPage = 2
+        )
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
+        vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
+        assertEquals(
+            ClassicalSourceViewModel.CommentSort.FEATURED,
+            vm.uiState.value.commentSort
+        )
+        vm.setCommentSort(ClassicalSourceViewModel.CommentSort.LATEST)
+        testScheduler.advanceUntilIdle()
+        val state = vm.uiState.value
+        assertEquals(
+            ClassicalSourceViewModel.CommentSort.LATEST,
+            state.commentSort
+        )
+        assertEquals(listOf("latest-1"), state.comments.items.map { it.rpid })
+        assertEquals(
+            ClassicalSourceViewModel.CommentsLoadState.END,
+            state.comments.loadState
         )
     }
 }

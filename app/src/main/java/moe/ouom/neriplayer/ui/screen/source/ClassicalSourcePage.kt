@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,12 +20,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.ClickableText
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,38 +50,46 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import moe.ouom.neriplayer.core.api.bili.BiliClient
 import moe.ouom.neriplayer.ui.viewmodel.source.ClassicalSourceViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 private const val SEEK_TAG = "SOURCE_SEEK"
 
+/** Source page tabs. Public: the player opens it straight on COMMENTS. */
+enum class SourceTab { INTRO, COMMENTS }
+
 /**
- * Classical Source negative-one page: SOURCE <- PLAYER.
- *
- * Exactly two sections behind fixed tabs ([简介][评论]), each vertically
- * scrollable on its own. No nested HorizontalPager, no Timeline/Metadata/AI.
+ * Classical Source page: [简介][评论] behind fixed tabs.
+ * Comments follow the BBPlayer look (separate page feel, dividers, relative
+ * time, inline emotes, picture grid, reply preview bubble, 精选/最新):
+ * reimplemented in Compose, no shared code.
  * Receives no playback position flow; timestamp taps only call [onSeekTo].
  */
 @Composable
 fun ClassicalSourcePage(
     viewModel: ClassicalSourceViewModel,
     onSeekTo: (Long) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startTab: SourceTab = SourceTab.INTRO
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var selectedTab by remember { mutableStateOf(SourceTab.INTRO) }
+    var selectedTab by remember(startTab) { mutableStateOf(startTab) }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -102,6 +124,7 @@ fun ClassicalSourcePage(
             )
             SourceTab.COMMENTS -> SourceCommentsContent(
                 state = state,
+                onSortChange = viewModel::setCommentSort,
                 onLoadMore = viewModel::loadMore,
                 onRetry = viewModel::retry,
                 onToggleReplies = viewModel::toggleReplies,
@@ -112,8 +135,6 @@ fun ClassicalSourcePage(
         }
     }
 }
-
-private enum class SourceTab { INTRO, COMMENTS }
 
 @Composable
 private fun SourceIntroContent(
@@ -180,7 +201,10 @@ private fun SourceIntroContent(
                             if (intro.pubdateSec > 0L) {
                                 Spacer(Modifier.height(4.dp))
                                 Text(
-                                    text = formatEpochSec(intro.pubdateSec),
+                                    text = formatCommentRelativeTime(
+                                        intro.pubdateSec * 1000L,
+                                        System.currentTimeMillis()
+                                    ).ifBlank { "" },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -216,6 +240,7 @@ private fun SourceIntroContent(
 @Composable
 private fun SourceCommentsContent(
     state: ClassicalSourceViewModel.SourceUiState,
+    onSortChange: (ClassicalSourceViewModel.CommentSort) -> Unit,
     onLoadMore: () -> Unit,
     onRetry: () -> Unit,
     onToggleReplies: (String) -> Unit,
@@ -261,6 +286,8 @@ private fun SourceCommentsContent(
         }
         return
     }
+    val nowMs = remember { System.currentTimeMillis() }
+    var viewerUrl by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
     LaunchedEffect(listState, comments.items.size, comments.hasMore) {
         snapshotFlow {
@@ -274,63 +301,115 @@ private fun SourceCommentsContent(
                 }
             }
     }
-    LazyColumn(
-        state = listState,
-        modifier = modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        items(
-            items = comments.items,
-            key = { it.rpid }
-        ) { comment ->
-            CommentRow(
-                comment = comment,
-                thread = state.replies[comment.rpid],
-                onToggleReplies = { onToggleReplies(comment.rpid) },
-                onLoadMoreReplies = { onLoadMoreReplies(comment.rpid) },
-                onSeekTo = onSeekTo
+    if (viewerUrl != null) {
+        Dialog(
+            onDismissRequest = { viewerUrl = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { viewerUrl = null },
+                contentAlignment = Alignment.Center
+            ) {
+                AsyncImage(
+                    model = viewerUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+    }
+    Column(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = state.commentSort == ClassicalSourceViewModel.CommentSort.FEATURED,
+                onClick = {
+                    onSortChange(ClassicalSourceViewModel.CommentSort.FEATURED)
+                },
+                label = { Text("精选") }
+            )
+            FilterChip(
+                selected = state.commentSort == ClassicalSourceViewModel.CommentSort.LATEST,
+                onClick = {
+                    onSortChange(ClassicalSourceViewModel.CommentSort.LATEST)
+                },
+                label = { Text("最新") }
             )
         }
-        item(key = "comments-footer") {
-            when (comments.loadState) {
-                ClassicalSourceViewModel.CommentsLoadState.LOADING_MORE -> {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) { CircularProgressIndicator() }
+        LazyColumn(
+            state = listState,
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
+        ) {
+            items(
+                items = comments.items,
+                key = { it.rpid }
+            ) { comment ->
+                Column {
+                    CommentRow(
+                        comment = comment,
+                        nowMs = nowMs,
+                        thread = state.replies[comment.rpid],
+                        onToggleReplies = { onToggleReplies(comment.rpid) },
+                        onLoadMoreReplies = { onLoadMoreReplies(comment.rpid) },
+                        onSeekTo = onSeekTo,
+                        onPictureClick = { viewerUrl = it }
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                    )
                 }
-                ClassicalSourceViewModel.CommentsLoadState.END -> {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = if (comments.items.isEmpty()) "暂无评论" else "到底了",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            }
+            item(key = "comments-footer") {
+                when (comments.loadState) {
+                    ClassicalSourceViewModel.CommentsLoadState.LOADING_MORE -> {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) { CircularProgressIndicator() }
                     }
-                }
-                ClassicalSourceViewModel.CommentsLoadState.ERROR -> {
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = comments.pageError ?: "加载失败",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        TextButton(onClick = onRetry) { Text("重试") }
+                    ClassicalSourceViewModel.CommentsLoadState.END -> {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (comments.items.isEmpty()) "暂无评论" else "到底了",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
+                    ClassicalSourceViewModel.CommentsLoadState.ERROR -> {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = comments.pageError ?: "加载失败",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            TextButton(onClick = onRetry) { Text("重试") }
+                        }
+                    }
+                    else -> Unit
                 }
-                else -> Unit
             }
         }
     }
@@ -339,62 +418,138 @@ private fun SourceCommentsContent(
 @Composable
 private fun CommentRow(
     comment: BiliClient.BiliRichComment,
+    nowMs: Long,
     thread: ClassicalSourceViewModel.ReplyThreadState?,
     onToggleReplies: () -> Unit,
     onLoadMoreReplies: () -> Unit,
     onSeekTo: (Long) -> Unit,
+    onPictureClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
         Row(modifier = Modifier.fillMaxWidth()) {
             if (comment.avatarUrl.isNotBlank()) {
                 AsyncImage(
                     model = comment.avatarUrl,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(40.dp)
                         .clip(CircleShape)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = comment.userName.ifBlank { "匿名" },
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.secondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    if (comment.likeCount > 0L) {
-                        Text(
-                            text = "♥ ${comment.likeCount}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                if (comment.ctimeSec > 0L) {
                     Text(
-                        text = formatEpochSec(comment.ctimeSec),
+                        text = formatCommentRelativeTime(comment.ctimeSec * 1000L, nowMs),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
-                Spacer(Modifier.height(2.dp))
-                TimestampCommentText(
+                Spacer(Modifier.height(4.dp))
+                RichCommentText(
                     message = comment.message,
+                    emotes = comment.emotes,
                     onSeekTo = onSeekTo
                 )
-                if (comment.replyCount > 0) {
-                    TextButton(onClick = onToggleReplies) {
+                if (comment.pictures.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    CommentPictureGrid(
+                        pictures = comment.pictures,
+                        onPictureClick = onPictureClick
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val liked = comment.liked
+                    Icon(
+                        imageVector = if (liked) Icons.Filled.ThumbUp else Icons.Outlined.ThumbUp,
+                        contentDescription = null,
+                        tint = if (liked) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        },
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = if (comment.likeCount > 0L) {
+                            comment.likeCount.toString()
+                        } else {
+                            "点赞"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                    if (comment.replyCount > 0) {
+                        Spacer(Modifier.width(16.dp))
+                        TextButton(onClick = onToggleReplies) {
+                            Icon(
+                                imageVector = Icons.Outlined.ChatBubbleOutline,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.outline,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = comment.replyCount.toString(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.outline
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        // 内嵌前排回复预览（列表 payload 自带，无需额外请求）。
+        if (comment.repliesPreview.isNotEmpty() && thread == null) {
+            Surface(
+                onClick = onToggleReplies,
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 52.dp, top = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    comment.repliesPreview.forEach { preview ->
                         Text(
-                            if (thread == null) {
-                                "查看回复(${comment.replyCount})"
-                            } else {
-                                "收起回复"
-                            }
+                            text = buildAnnotatedString {
+                                withStyle(
+                                    androidx.compose.ui.text.SpanStyle(
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    )
+                                ) {
+                                    append(preview.userName.ifBlank { "匿名" })
+                                    append(": ")
+                                }
+                                append(preview.message)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    if (comment.replyCount > comment.repliesPreview.size) {
+                        Text(
+                            text = "查看全部 ${comment.replyCount} 条回复",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                 }
@@ -404,11 +559,19 @@ private fun CommentRow(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 40.dp, top = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(start = 52.dp, top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 thread.items.forEach { reply ->
-                    ReplyRow(reply = reply, onSeekTo = onSeekTo)
+                    ReplyRow(
+                        reply = reply,
+                        nowMs = nowMs,
+                        onSeekTo = onSeekTo,
+                        onPictureClick = onPictureClick
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
                 }
                 when {
                     thread.loading -> {
@@ -433,8 +596,16 @@ private fun CommentRow(
                     thread.hasMore -> {
                         TextButton(onClick = onLoadMoreReplies) { Text("更多回复") }
                     }
+                    else -> {
+                        TextButton(onClick = onToggleReplies) { Text("收起回复") }
+                    }
                 }
             }
+        } else if (comment.replyCount > 0 && comment.repliesPreview.isEmpty()) {
+            TextButton(
+                onClick = onToggleReplies,
+                modifier = Modifier.padding(start = 44.dp)
+            ) { Text("查看回复(${comment.replyCount})") }
         }
     }
 }
@@ -442,7 +613,9 @@ private fun CommentRow(
 @Composable
 private fun ReplyRow(
     reply: BiliClient.BiliRichComment,
+    nowMs: Long,
     onSeekTo: (Long) -> Unit,
+    onPictureClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(modifier = modifier.fillMaxWidth()) {
@@ -451,84 +624,148 @@ private fun ReplyRow(
                 model = reply.avatarUrl,
                 contentDescription = null,
                 modifier = Modifier
-                    .size(24.dp)
+                    .size(28.dp)
                     .clip(CircleShape)
             )
             Spacer(Modifier.width(8.dp))
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = reply.userName.ifBlank { "匿名" },
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            TimestampCommentText(
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = reply.userName.ifBlank { "匿名" },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+                Text(
+                    text = formatCommentRelativeTime(reply.ctimeSec * 1000L, nowMs),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            RichCommentText(
                 message = reply.message,
+                emotes = reply.emotes,
                 onSeekTo = onSeekTo
+            )
+            if (reply.pictures.isNotEmpty()) {
+                Spacer(Modifier.height(6.dp))
+                CommentPictureGrid(
+                    pictures = reply.pictures,
+                    onPictureClick = onPictureClick
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CommentPictureGrid(
+    pictures: List<String>,
+    onPictureClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FlowRow(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        pictures.take(9).forEach { url ->
+            AsyncImage(
+                model = url,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(100.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onPictureClick(url) }
             )
         }
     }
 }
 
-/** Comment text where mm:ss / h:mm:ss segments are clickable seek links. */
+/** 富文本评论：纯文本 + 行内表情 + 可点击时间戳 seek。 */
 @Composable
-private fun TimestampCommentText(
+private fun RichCommentText(
     message: String,
+    emotes: Map<String, BiliClient.BiliCommentEmote>,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val links = remember(message) { parseTimestampLinks(message) }
-    if (links.isEmpty()) {
+    val segments = remember(message, emotes) {
+        parseRichCommentSegments(message, emotes)
+    }
+    if (segments.all { it is RichCommentSegment.Text }) {
         Text(
             text = message,
             style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = modifier
         )
         return
     }
-    val annotated = remember(message, links) {
+    val inlineContent = remember(segments) {
+        segments.filterIsInstance<RichCommentSegment.Emote>().mapIndexed { i, emote ->
+            val size = if (emote.large) 40.sp else 22.sp
+            "emote_$i" to InlineTextContent(
+                placeholder = Placeholder(size, size, PlaceholderVerticalAlign.TextCenter)
+            ) {
+                AsyncImage(
+                    model = emote.url,
+                    contentDescription = emote.key,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }.toMap()
+    }
+    val annotated = remember(segments) {
         buildAnnotatedString {
-            var cursor = 0
+            var emoteIndex = 0
             val linkStyle = androidx.compose.ui.text.SpanStyle(
                 color = androidx.compose.ui.graphics.Color(0xFF1E88E5)
             )
-            for (link in links) {
-                if (link.start > cursor) {
-                    append(message.substring(cursor, link.start))
+            for (segment in segments) {
+                when (segment) {
+                    is RichCommentSegment.Text -> append(segment.text)
+                    is RichCommentSegment.Emote -> {
+                        appendInlineContent("emote_${emoteIndex++}", "[表情]")
+                    }
+                    is RichCommentSegment.TimeLink -> {
+                        pushStringAnnotation(
+                            tag = SEEK_TAG,
+                            annotation = segment.positionMs.toString()
+                        )
+                        withStyle(linkStyle) { append(segment.text) }
+                        pop()
+                    }
                 }
-                pushStringAnnotation(tag = SEEK_TAG, annotation = link.positionMs.toString())
-                withStyle(linkStyle) {
-                    append(message.substring(link.start, link.endExclusive))
-                }
-                pop()
-                cursor = link.endExclusive
-            }
-            if (cursor < message.length) {
-                append(message.substring(cursor))
             }
         }
     }
-    ClickableText(
+    var layoutResult by remember {
+        mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+    }
+    Text(
         text = annotated,
         style = MaterialTheme.typography.bodyMedium.copy(
             color = MaterialTheme.colorScheme.onSurface
         ),
-        modifier = modifier,
-        onClick = { offset ->
-            annotated.getStringAnnotations(tag = SEEK_TAG, start = offset, end = offset)
-                .firstOrNull()
-                ?.item
-                ?.toLongOrNull()
-                ?.let { onSeekTo(it) }
+        inlineContent = inlineContent,
+        onTextLayout = { layoutResult = it },
+        modifier = modifier.pointerInput(annotated) {
+            detectTapGestures { pos ->
+                layoutResult?.getOffsetForPosition(pos)?.let { offset ->
+                    annotated.getStringAnnotations(tag = SEEK_TAG, start = offset, end = offset)
+                        .firstOrNull()
+                        ?.item
+                        ?.toLongOrNull()
+                        ?.let { onSeekTo(it) }
+                }
+            }
         }
     )
-}
-
-private fun formatEpochSec(epochSec: Long): String {
-    if (epochSec <= 0L) return ""
-    return runCatching {
-        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(epochSec * 1000L))
-    }.getOrDefault("")
 }

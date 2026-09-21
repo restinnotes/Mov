@@ -50,6 +50,12 @@ class ClassicalSourceViewModel(
         ERROR
     }
 
+    /** 精选 (Bili sort=2) / 最新 (Bili sort=0)，各自独立翻页。 */
+    enum class CommentSort(val biliSort: Int) {
+        FEATURED(2),
+        LATEST(0)
+    }
+
     data class CommentsState(
         val items: List<BiliClient.BiliRichComment> = emptyList(),
         val loadState: CommentsLoadState = CommentsLoadState.INITIAL_LOADING,
@@ -71,6 +77,7 @@ class ClassicalSourceViewModel(
         val bvid: String = "",
         val aid: Long = 0L,
         val intro: IntroState = IntroState.Empty,
+        val commentSort: CommentSort = CommentSort.FEATURED,
         val comments: CommentsState = CommentsState(
             loadState = CommentsLoadState.INITIAL_LOADING
         ),
@@ -189,7 +196,11 @@ class ClassicalSourceViewModel(
             )
         )
         moreJob = viewModelScope.launch {
-            val result = repository.loadCommentPage(state.aid, nextPage)
+            val result = repository.loadCommentPage(
+                state.aid,
+                nextPage,
+                sort = state.commentSort.biliSort
+            )
             if (gen != sourceGen) return@launch
             val current = _uiState.value.comments
             if (result == null) {
@@ -219,27 +230,19 @@ class ClassicalSourceViewModel(
         }
     }
 
+    /** Switch 精选/最新：独立翻页，切换即从第 1 页重载。 */
+    fun setCommentSort(sort: CommentSort) {
+        val state = _uiState.value
+        if (state.bvid.isBlank() || state.commentSort == sort) return
+        reloadFirstPage(sort)
+    }
+
     /** Retry after a page failure. First-page failure reloads from page 1. */
     fun retry() {
         val state = _uiState.value
         if (state.bvid.isBlank()) return
         if (state.comments.items.isEmpty()) {
-            val gen = ++sourceGen
-            cancelPending()
-            _uiState.value = state.copy(
-                comments = CommentsState(loadState = CommentsLoadState.INITIAL_LOADING)
-            )
-            preloadJob = viewModelScope.launch {
-                val snapshot = repository.preload(state.bvid, state.aid)
-                if (gen != sourceGen) return@launch
-                if (snapshot == null) {
-                    _uiState.value = _uiState.value.copy(
-                        comments = CommentsState(loadState = CommentsLoadState.ERROR)
-                    )
-                    return@launch
-                }
-                applySnapshot(gen, snapshot.intro, snapshot.firstComments)
-            }
+            reloadFirstPage(state.commentSort)
         } else {
             _uiState.value = state.copy(
                 comments = state.comments.copy(
@@ -248,6 +251,42 @@ class ClassicalSourceViewModel(
                 )
             )
             loadMore()
+        }
+    }
+
+    private fun reloadFirstPage(sort: CommentSort) {
+        val state = _uiState.value
+        val gen = ++sourceGen
+        cancelPending()
+        _uiState.value = state.copy(
+            commentSort = sort,
+            comments = CommentsState(loadState = CommentsLoadState.INITIAL_LOADING)
+        )
+        preloadJob = viewModelScope.launch {
+            val result = repository.loadCommentPage(
+                state.aid,
+                page = 1,
+                sort = sort.biliSort
+            )
+            if (gen != sourceGen) return@launch
+            if (result == null) {
+                _uiState.value = _uiState.value.copy(
+                    comments = CommentsState(loadState = CommentsLoadState.ERROR)
+                )
+                return@launch
+            }
+            _uiState.value = _uiState.value.copy(
+                comments = CommentsState(
+                    items = result.items.take(MAX_COMMENT_ITEMS),
+                    loadState = if (result.hasMore) {
+                        CommentsLoadState.READY
+                    } else {
+                        CommentsLoadState.END
+                    },
+                    page = 1,
+                    hasMore = result.hasMore
+                )
+            )
         }
     }
 

@@ -97,13 +97,14 @@ open class BiliSourceRepository(
     open suspend fun loadCommentPage(
         avid: Long,
         page: Int,
-        pageSize: Int = FIRST_PAGE_SIZE
+        pageSize: Int = FIRST_PAGE_SIZE,
+        sort: Int = DEFAULT_COMMENT_SORT
     ): BiliClient.BiliCommentPage? {
         if (avid <= 0L || page < 1) return null
         return runCatching {
             api.getCommentPageByAvid(
                 avid = avid,
-                sort = DEFAULT_COMMENT_SORT,
+                sort = sort,
                 page = page,
                 pageSize = pageSize
             )

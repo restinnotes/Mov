@@ -325,6 +325,13 @@ class BiliClient(
      * A comment without timestamp still renders in Comments; timestamp
      * extraction is a separate UI projection step, never a filter.
      */
+    data class BiliCommentEmote(
+        val text: String,
+        val url: String,
+        /** Bili emote size class: 2 = large sticker, otherwise small inline. */
+        val size: Int = 1
+    )
+
     data class BiliRichComment(
         val rpid: String,
         /** Direct parent rpid; "0" when this comment is itself a root. */
@@ -337,7 +344,15 @@ class BiliClient(
         val message: String,
         val likeCount: Long,
         val replyCount: Int,
-        val ctimeSec: Long
+        val ctimeSec: Long,
+        /** Current user liked this comment (action == 1). Display only. */
+        val liked: Boolean = false,
+        /** Inline emotes keyed by placeholder text, e.g. "[doge]". */
+        val emotes: Map<String, BiliCommentEmote> = emptyMap(),
+        /** Attached picture urls (content.pictures[].img_src). */
+        val pictures: List<String> = emptyList(),
+        /** First embedded replies from the list payload (no extra request). */
+        val repliesPreview: List<BiliRichComment> = emptyList()
     )
 
     data class BiliCommentPage(
@@ -719,11 +734,51 @@ class BiliClient(
         return BiliCommentPage(items = items, hasMore = hasMore, nextPage = page + 1)
     }
 
-    private fun parseBiliRichComment(reply: JSONObject): BiliRichComment? {
+    private fun parseBiliRichComment(reply: JSONObject, depth: Int = 0): BiliRichComment? {
         val rpid = reply.opt("rpid")?.toString()?.trim().orEmpty()
-        val message = reply.optJSONObject("content")?.optString("message").orEmpty()
+        val content = reply.optJSONObject("content")
+        val message = content?.optString("message").orEmpty()
         if (rpid.isBlank() || message.isBlank()) return null
         val member = reply.optJSONObject("member") ?: JSONObject()
+        // Inline emotes: content.emote maps placeholder text -> {url, meta.size}.
+        val emotes = buildMap {
+            val emoteObj = content?.optJSONObject("emote") ?: return@buildMap
+            val keys = emoteObj.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                val emote = emoteObj.optJSONObject(key) ?: continue
+                val url = ensureHttps(emote.optString("url")).takeIf { it.isNotBlank() }
+                    ?: continue
+                put(
+                    key,
+                    BiliCommentEmote(
+                        text = key,
+                        url = url,
+                        size = emote.optJSONObject("meta")?.optInt("size", 1) ?: 1
+                    )
+                )
+            }
+        }
+        // Attached pictures: content.pictures[].img_src.
+        val pictures = buildList {
+            val arr = content?.optJSONArray("pictures") ?: return@buildList
+            for (i in 0 until arr.length()) {
+                val url = ensureHttps(arr.optJSONObject(i)?.optString("img_src"))
+                if (url.isNotBlank()) add(url)
+            }
+        }
+        // Embedded first replies (list payload carries up to 3); one level only.
+        val repliesPreview = if (depth <= 0) {
+            buildList {
+                val arr = reply.optJSONArray("replies") ?: return@buildList
+                for (i in 0 until minOf(arr.length(), 3)) {
+                    parseBiliRichComment(arr.optJSONObject(i) ?: continue, depth + 1)
+                        ?.let { add(it) }
+                }
+            }
+        } else {
+            emptyList()
+        }
         return BiliRichComment(
             rpid = rpid,
             parent = reply.opt("parent")?.toString()?.trim().orEmpty().ifBlank { "0" },
@@ -734,7 +789,11 @@ class BiliClient(
             message = message,
             likeCount = reply.optLong("like"),
             replyCount = reply.optInt("rcount"),
-            ctimeSec = reply.optLong("ctime")
+            ctimeSec = reply.optLong("ctime"),
+            liked = reply.optInt("action", 0) == 1,
+            emotes = emotes,
+            pictures = pictures,
+            repliesPreview = repliesPreview
         )
     }
 

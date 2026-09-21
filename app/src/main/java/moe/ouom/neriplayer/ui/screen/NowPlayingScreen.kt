@@ -94,6 +94,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -119,6 +120,8 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import moe.ouom.neriplayer.core.api.bili.biliBvidOrNull
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -1786,6 +1789,7 @@ internal fun NowPlayingQueueSheet(
                             )
                         }
                         }
+                        }
                     }
                 }
             }
@@ -2175,8 +2179,11 @@ fun NowPlayingScreen(
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
-    // Classical Source 负一屏：PLAYER 右滑进入，仅 classical flavor。
+    // Classical Source 页：播放器评论气泡进入（默认评论 tab），返回键/左滑关闭。
     var showSourceScreen by remember { mutableStateOf(false) }
+    var sourceInitialTab by remember {
+        mutableStateOf(moe.ouom.neriplayer.ui.screen.source.SourceTab.INTRO)
+    }
     // Bilibili 来源预加载：切歌即在后台拉简介 + 第一页评论，不阻塞播放。
     val sourceSongKey = currentSong?.stableKey()
     LaunchedEffect(sourceSongKey) {
@@ -2928,15 +2935,6 @@ fun NowPlayingScreen(
                     }
                 }
 
-                // Classical: 歌词已关闭，右滑进入 Source 负一屏（简介/评论）。
-                if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
-                    contentModifier = contentModifier.pointerInput(Unit) {
-                        detectHorizontalDragGestures { _, dragAmount ->
-                            if (dragAmount > 25) showSourceScreen = true
-                        }
-                    }
-                }
-
                 val mainPlaybackControls: @Composable () -> Unit = {
                     BoxWithConstraints(
                         modifier = Modifier.fillMaxWidth(),
@@ -3129,7 +3127,7 @@ fun NowPlayingScreen(
                             )
                         }
 
-                        // 收藏和更多按钮 - 右侧
+                        // 收藏、评论和更多按钮 - 右侧
                         Row(
                             modifier = Modifier.align(Alignment.CenterEnd)
                         ) {
@@ -3163,6 +3161,30 @@ fun NowPlayingScreen(
                                         MaterialTheme.colorScheme.onSurface
                                     }
                                 )
+                            }
+
+                            // Classical 评论气泡：仅 B 站曲目可用，直达 Source 评论页。
+                            if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                                val commentBvid = currentSong?.biliBvidOrNull()
+                                HapticIconButton(
+                                    onClick = {
+                                        sourceInitialTab = moe.ouom.neriplayer.ui.screen.source.SourceTab.COMMENTS
+                                        showSourceScreen = true
+                                    },
+                                    enabled = commentBvid != null,
+                                    modifier = Modifier.size(nowPlayingTopActionButtonSize)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.ChatBubbleOutline,
+                                        contentDescription = "评论",
+                                        modifier = Modifier.size(nowPlayingTopActionIconSize),
+                                        tint = if (commentBvid != null) {
+                                            MaterialTheme.colorScheme.onSurface
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                        }
+                                    )
+                                }
                             }
 
                             HapticIconButton(
@@ -3241,7 +3263,16 @@ fun NowPlayingScreen(
                                         ),
                                         animatedVisibilityScope = this@AnimatedContent
                                     )
-                                    .clip(RoundedCornerShape(24.dp))
+                                    // Classical 竖屏：BBPlayer 式圆形封面；其余保持上游圆角。
+                                    .clip(
+                                        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled &&
+                                            !useWideLandscapeLayout && !isLandscape
+                                        ) {
+                                            CircleShape
+                                        } else {
+                                            RoundedCornerShape(24.dp)
+                                        }
+                                    )
                                     .background(
                                         color = if (currentCoverUrl != null) {
                                             Color.Transparent
@@ -3953,8 +3984,8 @@ fun NowPlayingScreen(
                 )
             }
         }
-                // Classical Source 负一屏：PLAYER 右滑进入，仅 classical flavor。
-                // 复用原歌词横滑区域；队列仍走上游 Queue Sheet，不进 pager。
+                // Classical Source 页：播放器评论气泡进入（默认评论 tab）。
+                // 队列仍走上游 Queue Sheet，不进 pager。
                 AnimatedVisibility(
                     visible = showSourceScreen && moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled,
                     enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
@@ -3965,6 +3996,7 @@ fun NowPlayingScreen(
                     ClassicalSourcePage(
                         viewModel = sourceViewModel,
                         onSeekTo = { positionMs -> PlayerManager.seekTo(positionMs) },
+                        startTab = sourceInitialTab,
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.background)

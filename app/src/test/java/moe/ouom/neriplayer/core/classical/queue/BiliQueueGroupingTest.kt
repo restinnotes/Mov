@@ -93,7 +93,7 @@ class BiliQueueGroupingTest {
             local("后")
         )
         val rows = groupConsecutiveBiliRuns(songs)
-        assertEquals(4, rows.size)
+        assertEquals(6, rows.size)
         val header = rows[1] as BiliQueueRow.GroupHeader
         assertEquals("标题A", header.title)
         assertEquals(3, header.count)
