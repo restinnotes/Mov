@@ -64,19 +64,27 @@
 
 ---
 
-## 5. Source 负一屏（本 fork 唯一新增大功能）
+## 5. Source 与播放体验（BBPlayer 风格，用 Compose 重写，无共享代码）
 
-- NowPlaying 默认 PLAYER；**右滑进入 SOURCE**（classical only，原歌词横滑区域复用）；
-  队列仍走上游 Queue Sheet，不进 pager；无 5 页 pager。
+- 播放页（classical 竖屏）：圆形封面、居中标题/作者、顶栏评论气泡（仅 B 站可用，
+  直达评论）；无歌词 tab/横滑。横屏/宽屏与 official 保持上游布局。
+- 评论：分隔线、相对时间、行内表情、图片九宫格（点看大图）、前排回复预览气泡、
+  完整楼中楼按需加载、精选/最新切换、时间戳 seek；点赞数仅展示。
+- 队列：点播 B 站视频即整视频进队列（先播当前分P，后台补齐其余分P，切歌丢弃晚到结果）；
+  队列 sheet 里同一视频连续分P成组显示，大标题默认展开、点标题收缩。
+  视频标题存于 album 第 4 段（stableKey 不含 album 原文，新旧格式身份一致）。
+
+- NowPlaying 默认 PLAYER；顶栏评论气泡直达 Source（classical only）；
+  队列仍走上游 Queue Sheet 样式（加分组合头），不进 pager；无 5 页 pager。
 - 顶部固定 tab **[ 简介 ][ 评论 ]**，各自纵向滚动，无嵌套 HorizontalPager。
 - 简介：封面、原标题、UP 主、发布日期、视频简介、来源链接。**无分 P 列表**
-  （分 P 已是队列独立项，用上游逻辑）。
+  （分 P 已是队列独立项）。
 - 评论：LazyColumn，`stable key = rpid`，连续滚动自动翻页；
   状态机 INITIAL_LOADING / READY / LOADING_MORE / END / ERROR；
-  分页失败保留已加载页 + 底部重试；默认排序单流（Bili sort=2）。
+  分页失败保留已加载页 + 底部重试；精选/最新各自独立翻页。
 - 时间戳（`12:34` / `1:02:15`）识别为可点击 seek；**不建 Timeline 系统**。
 - 楼中楼按需加载（每 root 独立 Job），replies 不预加载。
-- 预加载：BVID/CID 已知即后台拉简介 + 第一页评论（右滑前 1~2s 就绪）；只预加载这两样。
+- 预加载：BVID/CID 已知即后台拉简介 + 第一页评论（点气泡前 1~2s 就绪）；只预加载这两样。
 - 切歌立即取消旧 jobs，晚到结果不覆盖；BVID 缓存为有界 LRU（最近 5 个，仅简介+首页）；
   评论 items 上限 200；离屏/切歌释放后续页；后台不翻页不轮询。
 - Source 树不订阅 playback position；只有时间戳点击调 `PlayerManager.seekTo(ms)`。
