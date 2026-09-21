@@ -57,7 +57,7 @@ import moe.ouom.neriplayer.core.logging.NPLogger
 class BiliClient(
     private val cookieRepo: BiliCookieRepository = AppContainer.biliCookieRepo,
     client: OkHttpClient? = null
-) {
+) : moe.ouom.neriplayer.core.classical.source.BiliSourceApi {
 
     companion object {
         private const val TAG = "NERI-BiliClient"
@@ -550,7 +550,7 @@ class BiliClient(
 
     // 视频基础信息 //
 
-    suspend fun getVideoBasicInfoByBvid(bvid: String): VideoBasicInfo =
+    override suspend fun getVideoBasicInfoByBvid(bvid: String): VideoBasicInfo =
         fetchVideoBasicInfo(mapOf("bvid" to bvid))
 
     suspend fun getVideoBasicInfoByAvid(avid: Long): VideoBasicInfo =
@@ -662,7 +662,7 @@ class BiliClient(
      * sort: 2 = hot (Bili default), 0 = latest. page starts at 1.
      * No timestamp filtering here: every normal comment is returned.
      */
-    suspend fun getCommentPageByAvid(
+    override suspend fun getCommentPageByAvid(
         avid: Long,
         sort: Int,
         page: Int,
@@ -685,7 +685,7 @@ class BiliClient(
      * On-demand replies of one root comment thread.
      * page starts at 1. Returns only replies under [rootRpid].
      */
-    suspend fun getCommentRepliesByAvid(
+    override suspend fun getCommentRepliesByAvid(
         avid: Long,
         rootRpid: String,
         page: Int,

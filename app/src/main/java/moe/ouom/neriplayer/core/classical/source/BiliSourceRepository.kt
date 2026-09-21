@@ -32,7 +32,7 @@ data class BiliSourceSnapshot(
 )
 
 open class BiliSourceRepository(
-    private val client: BiliClient = BiliClient()
+    private val api: BiliSourceApi = BiliClient()
 ) {
     companion object {
         const val MAX_CACHED_SOURCES = 5
@@ -63,7 +63,7 @@ open class BiliSourceRepository(
     open suspend fun preload(bvid: String, aidHint: Long = 0L): BiliSourceSnapshot? {
         if (bvid.isBlank()) return null
         lock.withLock { cache[bvid] }?.let { return it }
-        val info = runCatching { client.getVideoBasicInfoByBvid(bvid) }.getOrNull()
+        val info = runCatching { api.getVideoBasicInfoByBvid(bvid) }.getOrNull()
             ?: return null
         val aid = info.aid.takeIf { it > 0L } ?: aidHint.takeIf { it > 0L } ?: 0L
         val intro = BiliSourceIntro(
@@ -79,7 +79,7 @@ open class BiliSourceRepository(
         )
         val firstPage = if (aid > 0L) {
             runCatching {
-                client.getCommentPageByAvid(
+                api.getCommentPageByAvid(
                     avid = aid,
                     sort = DEFAULT_COMMENT_SORT,
                     page = 1,
@@ -101,7 +101,7 @@ open class BiliSourceRepository(
     ): BiliClient.BiliCommentPage? {
         if (avid <= 0L || page < 1) return null
         return runCatching {
-            client.getCommentPageByAvid(
+            api.getCommentPageByAvid(
                 avid = avid,
                 sort = DEFAULT_COMMENT_SORT,
                 page = page,
@@ -118,7 +118,7 @@ open class BiliSourceRepository(
     ): BiliClient.BiliCommentPage? {
         if (avid <= 0L || rootRpid.isBlank() || page < 1) return null
         return runCatching {
-            client.getCommentRepliesByAvid(
+            api.getCommentRepliesByAvid(
                 avid = avid,
                 rootRpid = rootRpid,
                 page = page,

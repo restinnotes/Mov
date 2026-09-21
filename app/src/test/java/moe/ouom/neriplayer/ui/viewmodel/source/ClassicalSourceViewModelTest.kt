@@ -8,9 +8,8 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import moe.ouom.neriplayer.core.api.bili.BiliClient
-import moe.ouom.neriplayer.core.classical.source.BiliSourceIntro
+import moe.ouom.neriplayer.core.classical.source.BiliSourceApi
 import moe.ouom.neriplayer.core.classical.source.BiliSourceRepository
-import moe.ouom.neriplayer.core.classical.source.BiliSourceSnapshot
 import moe.ouom.neriplayer.data.model.SongItem
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -20,7 +19,7 @@ import org.junit.Test
 
 /**
  * Source page regression: preload, paging, cancellation, bounded memory.
- * No network: fake repository with controllable delay.
+ * No network: fake [BiliSourceApi]; the real repository (incl. its LRU) runs.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClassicalSourceViewModelTest {
@@ -67,42 +66,61 @@ class ClassicalSourceViewModelTest {
         )
     }
 
-    private fun intro(bvid: String, aid: Long = 100L): BiliSourceIntro {
-        return BiliSourceIntro(
-            bvid = bvid,
-            aid = aid,
-            title = "标题 $bvid",
-            coverUrl = null,
-            uploaderName = "UP",
-            uploaderMid = 2L,
-            pubdateSec = 1_700_000_000L,
-            desc = "简介",
-            sourceUrl = "https://www.bilibili.com/video/$bvid"
-        )
-    }
-
-    private class FakeRepository : BiliSourceRepository(BiliClient()) {
-        var preloadDelayMs = 0L
-        val snapshots = mutableMapOf<String, BiliSourceSnapshot>()
+    private class FakeApi : BiliSourceApi {
+        var infoDelayMs = 0L
+        val infos = mutableMapOf<String, BiliClient.VideoBasicInfo>()
         val pages = mutableMapOf<Int, BiliClient.BiliCommentPage>()
 
-        override suspend fun cached(bvid: String): BiliSourceSnapshot? = null
-
-        override suspend fun preload(bvid: String, aidHint: Long): BiliSourceSnapshot? {
-            if (preloadDelayMs > 0L) delay(preloadDelayMs)
-            return snapshots[bvid]
+        fun addSource(
+            bvid: String,
+            comments: List<BiliClient.BiliRichComment>,
+            hasMore: Boolean = false,
+            aid: Long = 100L
+        ) {
+            infos[bvid] = BiliClient.VideoBasicInfo(
+                aid = aid,
+                bvid = bvid,
+                title = "标题 $bvid",
+                coverUrl = "",
+                desc = "简介",
+                durationSec = 180,
+                ownerMid = 2L,
+                ownerName = "UP",
+                ownerFace = "",
+                stats = BiliClient.VideoStats(0, 0, 0, 0, 0, 0, 0),
+                pages = emptyList(),
+                pubdateSec = 1_700_000_000L
+            )
+            pages[1] = BiliClient.BiliCommentPage(
+                items = comments,
+                hasMore = hasMore,
+                nextPage = 2
+            )
         }
 
-        override suspend fun loadCommentPage(
+        override suspend fun getVideoBasicInfoByBvid(bvid: String): BiliClient.VideoBasicInfo {
+            if (infoDelayMs > 0L) delay(infoDelayMs)
+            return infos[bvid] ?: error("no info for $bvid")
+        }
+
+        override suspend fun getCommentPageByAvid(
             avid: Long,
+            sort: Int,
             page: Int,
             pageSize: Int
-        ): BiliClient.BiliCommentPage? = pages[page]
+        ): BiliClient.BiliCommentPage = pages[page] ?: error("no page $page")
+
+        override suspend fun getCommentRepliesByAvid(
+            avid: Long,
+            rootRpid: String,
+            page: Int,
+            pageSize: Int
+        ): BiliClient.BiliCommentPage = pages[page] ?: error("no replies page $page")
     }
 
     @Test
     fun `non bili song shows empty source`() = runTest {
-        val vm = ClassicalSourceViewModel(FakeRepository())
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(FakeApi()))
         val local = SongItem(
             id = 1L,
             name = "本地",
@@ -121,18 +139,12 @@ class ClassicalSourceViewModelTest {
 
     @Test
     fun `preload fills intro and first page`() = runTest {
-        val repo = FakeRepository()
+        val api = FakeApi()
         val bvid = "BV1test0001"
-        repo.snapshots[bvid] = BiliSourceSnapshot(
-            intro = intro(bvid),
-            firstComments = BiliClient.BiliCommentPage(
-                items = listOf(comment("1"), comment("2")),
-                hasMore = true,
-                nextPage = 2
-            )
-        )
-        val vm = ClassicalSourceViewModel(repo)
+        api.addSource(bvid, listOf(comment("1"), comment("2")), hasMore = true)
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
         vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
         val state = vm.uiState.value
         assertTrue(state.intro is ClassicalSourceViewModel.IntroState.Ready)
         assertEquals(2, state.comments.items.size)
@@ -144,30 +156,16 @@ class ClassicalSourceViewModelTest {
 
     @Test
     fun `late preload never overwrites newer source`() = runTest {
-        val repo = FakeRepository()
-        repo.preloadDelayMs = 100L
+        val api = FakeApi()
+        api.infoDelayMs = 100L
         val slow = "BV1slow0001"
         val fast = "BV1fast0002"
-        repo.snapshots[slow] = BiliSourceSnapshot(
-            intro = intro(slow),
-            firstComments = BiliClient.BiliCommentPage(
-                items = listOf(comment("slow-1")),
-                hasMore = false,
-                nextPage = 2
-            )
-        )
-        repo.snapshots[fast] = BiliSourceSnapshot(
-            intro = intro(fast),
-            firstComments = BiliClient.BiliCommentPage(
-                items = listOf(comment("fast-1")),
-                hasMore = false,
-                nextPage = 2
-            )
-        )
-        val vm = ClassicalSourceViewModel(repo)
+        api.addSource(slow, listOf(comment("slow-1")))
+        api.addSource(fast, listOf(comment("fast-1")))
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
         vm.onSongChanged(biliSong(slow))
         // Switch before the slow preload completes.
-        repo.preloadDelayMs = 0L
+        api.infoDelayMs = 0L
         vm.onSongChanged(biliSong(fast))
         testScheduler.advanceUntilIdle()
         val state = vm.uiState.value
@@ -177,19 +175,13 @@ class ClassicalSourceViewModelTest {
 
     @Test
     fun `page failure keeps first page and offers retry`() = runTest {
-        val repo = FakeRepository()
+        val api = FakeApi()
         val bvid = "BV1test0003"
-        repo.snapshots[bvid] = BiliSourceSnapshot(
-            intro = intro(bvid),
-            firstComments = BiliClient.BiliCommentPage(
-                items = listOf(comment("1")),
-                hasMore = true,
-                nextPage = 2
-            )
-        )
-        // No page 2 registered -> loadCommentPage returns null (failure).
-        val vm = ClassicalSourceViewModel(repo)
+        api.addSource(bvid, listOf(comment("1")), hasMore = true)
+        api.pages.remove(2)
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
         vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
         vm.loadMore()
         testScheduler.advanceUntilIdle()
         val state = vm.uiState.value
@@ -202,19 +194,12 @@ class ClassicalSourceViewModelTest {
 
     @Test
     fun `comment items are bounded`() = runTest {
-        val repo = FakeRepository()
+        val api = FakeApi()
         val bvid = "BV1test0004"
-        val many = (1..250).map { comment("c$it") }
-        repo.snapshots[bvid] = BiliSourceSnapshot(
-            intro = intro(bvid),
-            firstComments = BiliClient.BiliCommentPage(
-                items = many,
-                hasMore = true,
-                nextPage = 2
-            )
-        )
-        val vm = ClassicalSourceViewModel(repo)
+        api.addSource(bvid, (1..250).map { comment("c$it") }, hasMore = true)
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
         vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
         assertTrue(
             vm.uiState.value.comments.items.size <= ClassicalSourceViewModel.MAX_COMMENT_ITEMS
         )
