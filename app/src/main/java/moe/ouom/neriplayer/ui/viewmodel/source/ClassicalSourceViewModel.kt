@@ -158,7 +158,7 @@ class ClassicalSourceViewModel(
                 hasMore = false
             )
             else -> CommentsState(
-                items = firstPage.items.take(MAX_COMMENT_ITEMS),
+                items = firstPage.items.distinctBy { it.rpid }.take(MAX_COMMENT_ITEMS),
                 loadState = if (firstPage.hasMore) {
                     CommentsLoadState.READY
                 } else {
@@ -221,7 +221,7 @@ class ClassicalSourceViewModel(
                 )
                 return@launch
             }
-            val merged = (current.items + result.items).take(MAX_COMMENT_ITEMS)
+            val merged = (current.items + result.items).distinctBy { it.rpid }.take(MAX_COMMENT_ITEMS)
             val reachedCap = merged.size >= MAX_COMMENT_ITEMS
             _uiState.value = _uiState.value.copy(
                 comments = current.copy(
@@ -286,7 +286,7 @@ class ClassicalSourceViewModel(
             }
             _uiState.value = _uiState.value.copy(
                 comments = CommentsState(
-                    items = result.items.take(MAX_COMMENT_ITEMS),
+                    items = result.items.distinctBy { it.rpid }.take(MAX_COMMENT_ITEMS),
                     loadState = if (result.hasMore) {
                         CommentsLoadState.READY
                     } else {
@@ -329,7 +329,7 @@ class ClassicalSourceViewModel(
             _uiState.value = _uiState.value.copy(
                 replies = _uiState.value.replies + (
                     rootRpid to ReplyThreadState(
-                        items = result.items,
+                        items = result.items.distinctBy { it.rpid },
                         loading = false,
                         page = 1,
                         hasMore = result.hasMore
@@ -368,7 +368,7 @@ class ClassicalSourceViewModel(
             _uiState.value = _uiState.value.copy(
                 replies = _uiState.value.replies + (
                     rootRpid to current.copy(
-                        items = current.items + result.items,
+                        items = (current.items + result.items).distinctBy { it.rpid },
                         loading = false,
                         page = nextPage,
                         hasMore = result.hasMore
@@ -408,7 +408,7 @@ class ClassicalSourceViewModel(
                     if (target == null) {
                         // 新顶层评论：插在评论流最前面
                         val updatedComments = cur.comments.copy(
-                            items = listOf(newComment) + cur.comments.items
+                            items = (listOf(newComment) + cur.comments.items).distinctBy { it.rpid }
                         )
                         _uiState.value = cur.copy(
                             sending = false,
@@ -420,7 +420,7 @@ class ClassicalSourceViewModel(
                         // 楼中楼回复：插在对应回复列表里
                         val thread = cur.replies[target.rootRpid]
                         val updatedThread = (thread ?: ReplyThreadState()).let {
-                            it.copy(items = it.items + newComment)
+                            it.copy(items = (it.items + newComment).distinctBy { r -> r.rpid })
                         }
                         _uiState.value = cur.copy(
                             sending = false,

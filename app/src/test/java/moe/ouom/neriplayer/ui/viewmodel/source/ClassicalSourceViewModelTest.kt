@@ -291,4 +291,25 @@ class ClassicalSourceViewModelTest {
         assertTrue(thread != null)
         assertEquals("回复测试", thread?.items?.single()?.message)
     }
+
+    @Test
+    fun `loadMore deduplicates comments by rpid`() = runTest {
+        val api = FakeApi()
+        val bvid = "BV1test0008"
+        api.addSource(bvid, listOf(comment("dup-1"), comment("c2")), hasMore = true)
+        api.pages[2] = BiliClient.BiliCommentPage(
+            items = listOf(comment("dup-1"), comment("c3")),
+            hasMore = false,
+            nextPage = 3
+        )
+        val vm = ClassicalSourceViewModel(BiliSourceRepository(api))
+        vm.onSongChanged(biliSong(bvid))
+        testScheduler.advanceUntilIdle()
+        assertEquals(2, vm.uiState.value.comments.items.size)
+        vm.loadMore()
+        testScheduler.advanceUntilIdle()
+        val state = vm.uiState.value
+        assertEquals(3, state.comments.items.size)
+        assertEquals(listOf("dup-1", "c2", "c3"), state.comments.items.map { it.rpid })
+    }
 }

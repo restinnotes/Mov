@@ -810,12 +810,23 @@ class BiliClient(
     }
 
     private fun parseBiliCommentPage(data: JSONObject, page: Int): BiliCommentPage {
+        val topReplies = data.optJSONArray("top_replies")
+        val upperTop = data.optJSONObject("upper")?.optJSONObject("top")
         val replies = data.optJSONArray("replies") ?: JSONArray()
-        val items = buildList(replies.length()) {
+        val items = buildList {
+            if (page <= 1) {
+                if (topReplies != null) {
+                    for (index in 0 until topReplies.length()) {
+                        parseBiliRichComment(topReplies.optJSONObject(index) ?: continue)?.let { add(it) }
+                    }
+                } else if (upperTop != null) {
+                    parseBiliRichComment(upperTop)?.let { add(it) }
+                }
+            }
             for (index in 0 until replies.length()) {
                 parseBiliRichComment(replies.optJSONObject(index) ?: continue)?.let { add(it) }
             }
-        }
+        }.distinctBy { it.rpid }
         val cursor = data.optJSONObject("cursor")
         val hasMore: Boolean
         val nextPage: Int

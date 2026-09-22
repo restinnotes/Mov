@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ThumbUp
@@ -79,6 +80,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import moe.ouom.neriplayer.core.api.bili.BiliClient
+import moe.ouom.neriplayer.core.classical.source.BiliSourceIntro
 import moe.ouom.neriplayer.ui.viewmodel.source.ClassicalSourceViewModel
 import moe.ouom.neriplayer.util.format.formatDuration
 
@@ -482,6 +484,23 @@ private fun SourceCommentsContent(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
     ) {
+        val introObj = (state.intro as? ClassicalSourceViewModel.IntroState.Ready)?.intro
+        if (introObj != null && introObj.desc.isNotBlank()) {
+            item(key = "intro-as-comment") {
+                Column {
+                    IntroCommentRow(
+                        intro = introObj,
+                        nowMs = nowMs,
+                        onSeekTo = onSeekTo
+                    )
+                    HorizontalDivider(
+                        modifier = Modifier.padding(top = 8.dp),
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+                    )
+                }
+            }
+        }
+
         items(
             items = comments.items,
             key = { it.rpid }
@@ -546,6 +565,95 @@ private fun SourceCommentsContent(
             }
         }
     }
+
+@Composable
+private fun IntroCommentRow(
+    intro: BiliSourceIntro,
+    nowMs: Long,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            if (!intro.uploaderFace.isNullOrBlank()) {
+                AsyncImage(
+                    model = intro.uploaderFace,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                )
+                Spacer(Modifier.width(12.dp))
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = intro.uploaderName.ifBlank { "UP主" },
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        ),
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = "UP主 · 简介",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                    Spacer(Modifier.weight(1f))
+                    if (intro.pubdateSec > 0L) {
+                        Text(
+                            text = formatCommentRelativeTime(intro.pubdateSec * 1000L, nowMs),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
+                }
+                Spacer(Modifier.height(4.dp))
+                RichCommentText(
+                    message = intro.desc,
+                    emotes = emptyMap(),
+                    onSeekTo = onSeekTo
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun CommentRow(

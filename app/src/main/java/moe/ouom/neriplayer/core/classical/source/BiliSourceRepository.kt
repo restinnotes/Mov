@@ -23,7 +23,8 @@ data class BiliSourceIntro(
     val uploaderMid: Long,
     val pubdateSec: Long,
     val desc: String,
-    val sourceUrl: String
+    val sourceUrl: String,
+    val uploaderFace: String? = null
 )
 
 data class BiliSourceSnapshot(
@@ -73,6 +74,7 @@ open class BiliSourceRepository(
             coverUrl = info.coverUrl.takeIf { it.isNotBlank() },
             uploaderName = info.ownerName,
             uploaderMid = info.ownerMid,
+            uploaderFace = info.ownerFace.takeIf { it.isNotBlank() },
             pubdateSec = info.pubdateSec,
             desc = info.desc,
             sourceUrl = "https://www.bilibili.com/video/${info.bvid.ifBlank { bvid }}"
