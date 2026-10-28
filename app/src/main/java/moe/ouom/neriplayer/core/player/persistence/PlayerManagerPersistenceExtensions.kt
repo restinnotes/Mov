@@ -1023,6 +1023,44 @@ internal fun PlayerManager.playFromQueueImpl(
     )
 }
 
+internal fun PlayerManager.playSongAppendingToQueueImpl(
+    song: SongItem,
+    bypassLoudVolumeWarning: Boolean = false
+) {
+    ensureInitialized()
+    if (!initialized) return
+    val source = PlaybackCommandSource.LOCAL
+    if (shouldBlockLocalRoomControl(source) || shouldBlockLocalSongSwitch(song, source)) return
+    if (requestUsbExclusiveLoudPlaybackConfirmation(
+            commandSource = source,
+            bypassWarning = bypassLoudVolumeWarning,
+            continuePlayback = { playSongAppendingToQueueImpl(song, true) }
+        )) return
+    val plan = moe.ouom.neriplayer.core.classical.queue.planQueueAppendAndPlay(currentPlaylist, song)
+    if (plan.queue != currentPlaylist) {
+        currentPlaylist = plan.queue
+        _currentQueueFlow.value = currentPlaylist
+        bumpCurrentQueueDisplayRevision()
+    }
+    playFromQueueImpl(plan.targetIndex, source, bypassLoudVolumeWarning = true)
+}
+
+/** Extend the logical queue while leaving the active media and playback position intact. */
+internal fun PlayerManager.mergeBiliPartsIntoQueue(tappedKey: String, parts: List<SongItem>): Boolean {
+    ensureInitialized()
+    if (!initialized || shouldBlockLocalRoomControl(PlaybackCommandSource.LOCAL)) return false
+    val merged = moe.ouom.neriplayer.core.classical.queue.mergeBiliVideoPartsAfterCurrent(
+        currentPlaylist, currentIndex, tappedKey, parts
+    ) ?: return false
+    currentPlaylist = merged.queue
+    currentIndex = merged.currentIndex
+    _currentQueueFlow.value = currentPlaylist
+    bumpCurrentQueueDisplayRevision()
+    emitQueueUpdateCommand()
+    ioScope.launch { persistState() }
+    return true
+}
+
 internal fun PlayerManager.replaceCurrentInQueueAndPlayImpl(
     song: SongItem,
     commandSource: PlaybackCommandSource = PlaybackCommandSource.LOCAL,

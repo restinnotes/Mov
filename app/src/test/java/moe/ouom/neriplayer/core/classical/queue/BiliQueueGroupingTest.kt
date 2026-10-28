@@ -198,6 +198,21 @@ class BiliQueueGroupingTest {
     }
 
     @Test
+    fun `resuming a middle part completes ordered work and keeps other queued songs`() {
+        val before = local("Before")
+        val after = local("After")
+        val tapped = biliPart("BV1a", 3L)
+        val otherPart = biliPart("BV1a", 1L)
+        val queue = listOf(before, tapped, after, otherPart)
+        val parts = buildBiliVideoPartSongs(info("BV1a", listOf(1L, 2L, 3L, 4L)), "")
+        val result = mergeBiliVideoPartsAfterCurrent(queue, 1, tapped.stableKey(), parts)!!
+        assertEquals(listOf(before, otherPart.copy(album = parts[0].album), parts[1], tapped.copy(album = parts[2].album), parts[3], after), result.queue)
+        assertEquals(3, result.currentIndex)
+        assertEquals(tapped.stableKey(), result.queue[result.currentIndex].stableKey())
+        assertNull(mergeBiliVideoPartsAfterCurrent(result.queue, result.currentIndex, tapped.stableKey(), parts))
+    }
+
+    @Test
     fun `merge aborts when song changed`() {
         val queue = listOf(biliPart("BV1a", 1L))
         val parts = buildBiliVideoPartSongs(info("BV1a", listOf(1L, 2L)), "")

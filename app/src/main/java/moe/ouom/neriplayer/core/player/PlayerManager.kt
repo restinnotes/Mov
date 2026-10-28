@@ -171,6 +171,7 @@ import moe.ouom.neriplayer.core.player.persistence.addCurrentToFavoritesImpl
 import moe.ouom.neriplayer.core.player.persistence.addCurrentToPlaylistImpl
 import moe.ouom.neriplayer.core.player.persistence.addToQueueEndImpl
 import moe.ouom.neriplayer.core.player.persistence.addToQueueNextImpl
+import moe.ouom.neriplayer.core.player.persistence.playSongAppendingToQueueImpl
 import moe.ouom.neriplayer.core.player.persistence.applyRemoteQueueUpdateImpl
 import moe.ouom.neriplayer.core.player.persistence.getLyricsImpl
 import moe.ouom.neriplayer.core.player.persistence.getNeteaseLyricsImpl
@@ -2723,6 +2724,9 @@ object PlayerManager {
         song: SongItem,
         commandSource: PlaybackCommandSource = PlaybackCommandSource.LOCAL
     ) = replaceCurrentInQueueAndPlayImpl(song, commandSource)
+
+    fun playSongAppendingToQueue(song: SongItem) =
+        playSongAppendingToQueueImpl(song)
 
     fun addToQueueNext(song: SongItem) = addToQueueNextImpl(song)
 

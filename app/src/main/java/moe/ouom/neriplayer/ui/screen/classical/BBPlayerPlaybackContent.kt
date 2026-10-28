@@ -102,6 +102,7 @@ fun BBPlayerPlaybackPortraitContent(
     onCycleRepeatMode: () -> Unit,
     onOpenComments: () -> Unit,
     onOpenQueue: () -> Unit,
+    onOpenParts: (() -> Unit)? = null,
     sleepTimerActive: Boolean,
     onOpenSleepTimer: () -> Unit,
     onOpenMoreOptions: () -> Unit,
@@ -357,7 +358,7 @@ fun BBPlayerPlaybackPortraitContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = 16.dp)
                 .padding(bottom = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
@@ -393,6 +394,11 @@ fun BBPlayerPlaybackPortraitContent(
                     tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+            if (onOpenParts != null) {
+                androidx.compose.material3.TextButton(onClick = onOpenParts) {
+                    Text(stringResource(R.string.classical_parts_short))
+                }
             }
             IconButton(onClick = onOpenComments, modifier = Modifier.size(40.dp)) {
                 Icon(

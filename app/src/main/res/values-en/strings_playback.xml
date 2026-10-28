@@ -176,4 +176,11 @@
     <!-- Classical queue -->
     <string name="classical_queue_group_summary_format">%1$s · %2$s</string>
     <string name="classical_queue_summary_format">%1$s · %2$s · %3$s total</string>
+    <string name="classical_all_parts">All parts</string>
+    <string name="classical_parts_short">Parts</string>
+    <string name="classical_parts_search">Search title or part number</string>
+    <string name="classical_parts_locate">Current</string>
+    <string name="classical_parts_failed">Could not load parts. Please retry.</string>
+    <string name="classical_parts_retry">Retry</string>
+    <string name="classical_parts_empty">No matching parts</string>
 </resources>

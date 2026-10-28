@@ -2184,7 +2184,9 @@ private fun NeriAppContent(
             startIndex = 0,
             source = "ui_click_preserve_queue_before_play"
         )
-        PlayerManager.replaceCurrentInQueueAndPlay(song)
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+            PlayerManager.playSongAppendingToQueue(song)
+        } else PlayerManager.replaceCurrentInQueueAndPlay(song)
         // 先提交当前歌曲, 播放页首帧不能继续绘制上一首封面
         showNowPlaying = true
         scheduleAudioServiceStart(
@@ -2249,7 +2251,12 @@ private fun NeriAppContent(
         lyricsAlbumRouteObserved = false
         currentPlaybackSourceRoute = sourceRoute
         NPLogger.d("NERI-App", "Playing parts from Bili video: ${videoInfo.title}")
-        PlayerManager.playBiliVideoParts(videoInfo, index, coverUrl)
+        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+            moe.ouom.neriplayer.core.classical.queue.sharedBiliVideoInfoCache.put(videoInfo.bvid, videoInfo)
+            val song = moe.ouom.neriplayer.core.classical.queue.buildBiliVideoPartSongs(videoInfo, coverUrl)
+                .getOrNull(index) ?: return
+            playSongPreservingQueueAndOpenNowPlaying(song)
+        } else PlayerManager.playBiliVideoParts(videoInfo, index, coverUrl)
         showNowPlaying = true
         ensureAudioServiceStarted(source = "play_bili_parts_and_open_now_playing")
     }
@@ -2804,6 +2811,7 @@ private fun NeriAppContent(
                         showRecommendedCard = showHomeRecommendedCard,
                         homeUsageEntries = homeUsageSnapshot.entries,
                         homeUsageLoaded = homeUsageSnapshot.isLoaded,
+                        onSongPlayPreservingQueue = ::playSongPreservingQueueAndOpenNowPlaying,
                         onOpenHistory = { navController.navigate(Destinations.Recent.route) },
                         onOpenLibrary = { navigateToMainTab(Destinations.Library.route) },
                         offlineMode = offlineMode,
@@ -3963,6 +3971,7 @@ private fun NeriAppContent(
                                 ) {
                                     RenderNavHostScene(Destinations.Recent.route) {
                                         RecentScreen(
+                                            onSongPlayPreservingQueue = ::playSongPreservingQueueAndOpenNowPlaying,
                                             onBack = { navController.popBackStack() },
                                             onSongClick = ::playSongsAndOpenNowPlaying,
                                             offlineMode = offlineMode

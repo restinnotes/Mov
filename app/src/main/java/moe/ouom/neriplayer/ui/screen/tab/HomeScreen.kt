@@ -248,6 +248,7 @@ fun HomeScreen(
     onScrollAnchorIndexesChanged: (Map<String, Int>) -> Unit = {},
     onOpenRecent: (UsageEntry) -> Unit = {},
     onSongClick: (List<SongItem>, Int) -> Unit = { _, _ -> },
+    onSongPlayPreservingQueue: (SongItem) -> Unit = { onSongClick(listOf(it), 0) },
     onOpenHistory: () -> Unit = {},
     onOpenLibrary: () -> Unit = {},
     onOpenLocalPlaylist: (Long) -> Unit = {}
@@ -570,7 +571,7 @@ fun HomeScreen(
                                 )
                             } else {
                                 ClassicalRecentShelf(recentWorks, offlineMode) { song ->
-                                    onSongClick(listOf(song), 0)
+                                    onSongPlayPreservingQueue(song)
                                 }
                             }
                         }

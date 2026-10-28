@@ -176,4 +176,11 @@
     <!-- Classical queue -->
     <string name="classical_queue_group_summary_format">%1$s · %2$s</string>
     <string name="classical_queue_summary_format">%1$s · %2$s · 共 %3$s</string>
+    <string name="classical_all_parts">全部分P</string>
+    <string name="classical_parts_short">分P</string>
+    <string name="classical_parts_search">搜索标题或分P编号</string>
+    <string name="classical_parts_locate">定位当前</string>
+    <string name="classical_parts_failed">分P加载失败，请重试</string>
+    <string name="classical_parts_retry">重试</string>
+    <string name="classical_parts_empty">没有匹配的分P</string>
 </resources>

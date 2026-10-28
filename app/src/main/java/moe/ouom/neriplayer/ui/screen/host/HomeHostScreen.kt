@@ -142,6 +142,7 @@ fun HomeHostScreen(
     onOpenLibrary: () -> Unit = {},
     runtimeState: HomeHostRuntimeState = rememberHomeHostRuntimeState(),
     onSongClick: (List<SongItem>, Int) -> Unit = { _, _ -> },
+    onSongPlayPreservingQueue: (SongItem) -> Unit = { onSongClick(listOf(it), 0) },
     onSongClickWithSourceRoute: (List<SongItem>, Int, String?) -> Unit = { songs, index, _ ->
         onSongClick(songs, index)
     },
@@ -449,6 +450,7 @@ fun HomeHostScreen(
                                     openRecent(entry, ::openHomeSelectedItem)
                                 },
                                 onSongClick = onSongClick,
+                                onSongPlayPreservingQueue = onSongPlayPreservingQueue,
                                 onOpenHistory = onOpenHistory,
                                 onOpenLibrary = onOpenLibrary,
                                 onOpenLocalPlaylist = { playlistId ->

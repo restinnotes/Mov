@@ -134,7 +134,8 @@ import kotlin.random.Random
 fun RecentScreen(
     onBack: () -> Unit = {},
     onSongClick: (List<SongItem>, Int) -> Unit,
-    offlineMode: Boolean = false
+    offlineMode: Boolean = false,
+    onSongPlayPreservingQueue: (SongItem) -> Unit = { onSongClick(listOf(it), 0) }
 ) {
     val repo = AppContainer.playHistoryRepo
     val history by repo.historyFlow.collectAsStateWithLifecycle()
@@ -449,7 +450,11 @@ fun RecentScreen(
                                 } else {
                                     val pos =
                                         displayedSongs.indexOfFirst { it.sameIdentityAs(song) }
-                                    if (pos >= 0) onSongClick(displayedSongs, pos)
+                                    if (pos >= 0) {
+                                        if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                                            onSongPlayPreservingQueue(song)
+                                        } else onSongClick(displayedSongs, pos)
+                                    }
                                 }
                             },
                             moreMenu = {

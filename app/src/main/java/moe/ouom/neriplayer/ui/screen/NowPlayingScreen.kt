@@ -122,6 +122,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import moe.ouom.neriplayer.core.api.bili.biliBvidOrNull
+import moe.ouom.neriplayer.core.classical.queue.expandBiliVideoPartsAfterCurrent
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -757,6 +758,7 @@ private fun NowPlayingQueueGroupHeader(
     expanded: Boolean,
     onToggle: () -> Unit,
     onPlayAll: () -> Unit,
+    onOpenParts: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -805,6 +807,12 @@ private fun NowPlayingQueueGroupHeader(
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = stringResource(R.string.classical_all_parts),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable(onClick = onOpenParts).padding(vertical = 4.dp)
                 )
             }
             IconButton(onClick = onPlayAll) {
@@ -1275,7 +1283,8 @@ internal fun NowPlayingQueueSheet(
     offlineMode: Boolean,
     allowQueueReorder: Boolean,
     onDismissRequest: () -> Unit,
-    onOpenCurrentPlaybackSource: (() -> Unit)? = null
+    onOpenCurrentPlaybackSource: (() -> Unit)? = null,
+    onOpenBiliParts: (SongItem) -> Unit = {}
 ) {
     val context = LocalContext.current
     val screenScope = rememberCoroutineScope()
@@ -1733,6 +1742,12 @@ internal fun NowPlayingQueueSheet(
                                     count = row.count,
                                     totalDurationMs = row.totalDurationMs,
                                     coverUrl = firstCover,
+                                    onOpenParts = {
+                                        queueEntriesSnapshot.getOrNull(row.firstQueueIndex)?.song?.let {
+                                            onDismissRequest()
+                                            onOpenBiliParts(it)
+                                        }
+                                    },
                                     expanded = row.groupKey !in collapsedQueueGroups,
                                     onToggle = {
                                         collapsedQueueGroups = if (row.groupKey in collapsedQueueGroups) {
@@ -2222,6 +2237,7 @@ fun NowPlayingScreen(
 
     var showAddSheet by remember { mutableStateOf(false) }
     var showQueueSheet by remember { mutableStateOf(false) }
+    var biliPartsSong by remember { mutableStateOf<SongItem?>(null) }
     // Classical 评论区页面（BBPlayer 风格）：由播放器次控栏评论图标进入。
     var showCommentsScreen by remember { mutableStateOf(false) }
     // Bilibili 来源预加载：切歌即在后台拉简介 + 第一页评论，不阻塞播放。
@@ -3860,6 +3876,7 @@ fun NowPlayingScreen(
                             onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
                             onOpenComments = { showCommentsScreen = true },
                             onOpenQueue = { showQueueSheet = true },
+                            onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
                             sleepTimerActive = sleepTimerState.isActive,
                             onOpenSleepTimer = { showSleepTimerDialog = true },
                             onOpenMoreOptions = { showMoreOptions = true },
@@ -3940,6 +3957,19 @@ fun NowPlayingScreen(
             }
 
             // 播放队列弹窗
+            biliPartsSong?.let { partsSong ->
+                moe.ouom.neriplayer.ui.component.classical.BiliVideoPartsSheet(
+                    song = partsSong,
+                    onDismiss = { biliPartsSong = null },
+                    onPlay = { part ->
+                        PlayerManager.playSongAppendingToQueue(part)
+                        screenScope.launch {
+                            PlayerManager.expandBiliVideoPartsAfterCurrent(part.stableKey(), PlayerManager.biliClient)
+                        }
+                        biliPartsSong = null
+                    }
+                )
+            }
             if (showQueueSheet) {
                 NowPlayingQueueSheet(
                     displayedQueueItems = displayedQueueItems,
@@ -3947,7 +3977,8 @@ fun NowPlayingScreen(
                     offlineMode = offlineMode,
                     allowQueueReorder = playbackProgressSeekEnabled,
                     onDismissRequest = { showQueueSheet = false },
-                    onOpenCurrentPlaybackSource = onOpenCurrentPlaybackSource
+                    onOpenCurrentPlaybackSource = onOpenCurrentPlaybackSource,
+                    onOpenBiliParts = { biliPartsSong = it }
                 )
             }
 

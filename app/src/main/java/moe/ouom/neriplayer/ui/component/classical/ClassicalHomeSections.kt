@@ -24,6 +24,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,6 +59,13 @@ internal fun ClassicalRecentShelf(
     offlineMode: Boolean,
     onPlay: (SongItem) -> Unit
 ) {
+    var partsSong by remember { mutableStateOf<SongItem?>(null) }
+    partsSong?.let { song ->
+        BiliVideoPartsSheet(song, onDismiss = { partsSong = null }, onPlay = {
+            partsSong = null
+            onPlay(it)
+        })
+    }
     LazyRow(
         contentPadding = PaddingValues(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -62,14 +74,19 @@ internal fun ClassicalRecentShelf(
             val bvid = song.biliBvidOrNull()
             // Only display an exact part count when the video metadata is known.
             val partCount = bvid?.let { sharedBiliVideoInfoCache.get(it)?.pages?.size }
-            ClassicalShelfCard(
-                title = song.biliVideoTitleOrNull()?.takeIf { it.isNotBlank() } ?: song.displayName(),
-                subtitle = song.displayArtist(),
-                coverUrl = rememberSongDisplayCoverUrl(song),
-                badge = partCount?.takeIf { it > 1 }?.let { "${it}P" },
-                offlineMode = offlineMode,
-                onClick = { onPlay(song) }
-            )
+            Column {
+                ClassicalShelfCard(
+                    title = song.biliVideoTitleOrNull()?.takeIf { it.isNotBlank() } ?: song.displayName(),
+                    subtitle = song.displayArtist(),
+                    coverUrl = rememberSongDisplayCoverUrl(song),
+                    badge = partCount?.takeIf { it > 1 }?.let { "${it}P" },
+                    offlineMode = offlineMode,
+                    onClick = { onPlay(song) }
+                )
+                if (bvid != null) TextButton(onClick = { partsSong = song }, modifier = Modifier.width(111.dp)) {
+                    Text(stringResource(R.string.classical_all_parts), maxLines = 1)
+                }
+            }
         }
     }
 }
