@@ -422,7 +422,7 @@ fun HomeScreen(
             Modifier
                 .fillMaxSize()
                 .statusBarsPadding()
-                .nestedScroll(scrollBehavior.nestedScrollConnection)
+                .then(if (classical) Modifier else Modifier.nestedScroll(scrollBehavior.nestedScrollConnection))
         ) {
             if (classical) {
                 TopAppBar(
