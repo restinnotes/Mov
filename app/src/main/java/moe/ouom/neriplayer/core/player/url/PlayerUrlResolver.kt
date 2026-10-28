@@ -4,6 +4,7 @@ import android.net.Uri
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.api.youtube.YouTubePlayableAudio
 import moe.ouom.neriplayer.core.player.model.PlaybackAudioInfo
+import moe.ouom.neriplayer.core.player.model.PlaybackUrlCandidate
 import moe.ouom.neriplayer.core.player.model.PlaybackAudioSource
 import moe.ouom.neriplayer.core.player.model.PlaybackQualityOption
 import moe.ouom.neriplayer.core.player.model.SongUrlResult
@@ -11,6 +12,7 @@ import moe.ouom.neriplayer.core.player.model.deriveCodecLabel
 import moe.ouom.neriplayer.core.player.model.estimateBitrateKbps
 import moe.ouom.neriplayer.core.player.model.inferYouTubeQualityKeyFromBitrate
 import moe.ouom.neriplayer.data.platform.bili.BiliAudioStreamInfo
+import moe.ouom.neriplayer.data.platform.bili.BiliQuality
 import moe.ouom.neriplayer.core.player.resolver.netease.NeteasePlaybackResponseParser
 import java.net.URLDecoder
 import kotlin.math.abs
@@ -215,6 +217,43 @@ internal fun buildYouTubePlaybackAudioInfo(
         mimeType = playableAudio.mimeType,
         bitrateKbps = playableAudio.bitrateKbps,
         sampleRateHz = playableAudio.sampleRateHz
+    )
+}
+
+internal fun buildBiliSuccessResult(
+    selectedStream: BiliAudioStreamInfo,
+    availableStreams: List<BiliAudioStreamInfo>,
+    getLocalizedString: (Int) -> String
+): SongUrlResult.Success {
+    val qualityOrder = BiliQuality.degradeChain(BiliQuality.DOLBY).map { it.key }
+    val selectedRank = qualityOrder.indexOf(inferBiliQualityKey(selectedStream))
+    val selectedIdentity = buildBiliRepresentationIdentity(selectedStream)
+    val fallbacks = availableStreams
+        .filter { stream ->
+            stream.url.isNotBlank() &&
+                buildBiliRepresentationIdentity(stream) != selectedIdentity &&
+                qualityOrder.indexOf(inferBiliQualityKey(stream)) >= selectedRank
+        }
+        .sortedWith(compareBy<BiliAudioStreamInfo> {
+            qualityOrder.indexOf(inferBiliQualityKey(it))
+        }.thenByDescending { it.bitrateKbps })
+        .distinctBy(::buildBiliRepresentationIdentity)
+        .map { stream ->
+            PlaybackUrlCandidate(
+                url = stream.url,
+                candidateUrls = stream.candidateUrls,
+                mimeType = stream.mimeType,
+                audioInfo = buildBiliPlaybackAudioInfo(stream, availableStreams, getLocalizedString),
+                representationIdentity = buildBiliRepresentationIdentity(stream)
+            )
+        }
+    return SongUrlResult.Success(
+        url = selectedStream.url,
+        candidateUrls = selectedStream.candidateUrls,
+        mimeType = selectedStream.mimeType,
+        audioInfo = buildBiliPlaybackAudioInfo(selectedStream, availableStreams, getLocalizedString),
+        representationIdentity = selectedIdentity,
+        fallbackCandidates = fallbacks
     )
 }
 

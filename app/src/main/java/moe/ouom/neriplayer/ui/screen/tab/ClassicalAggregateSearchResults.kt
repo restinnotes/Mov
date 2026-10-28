@@ -124,11 +124,7 @@ private fun LazyListScope.aggregateProviderRows(
                     .takeIf { it >= 0 } ?: index
                 ListItem(
                     headlineContent = {
-                        Text(
-                            text = song.displayName(),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        SearchResultTitle(text = song.displayName())
                     },
                     supportingContent = {
                         Text(
@@ -150,11 +146,7 @@ private fun LazyListScope.aggregateProviderRows(
             is ExploreSearchResult.YouTubeCreator -> {
                 ListItem(
                     headlineContent = {
-                        Text(
-                            text = item.creator.title,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        SearchResultTitle(text = item.creator.title)
                     },
                     supportingContent = {
                         Text(

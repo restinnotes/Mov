@@ -9,6 +9,8 @@ import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.HttpDataSource
 import moe.ouom.neriplayer.core.logging.NPLogger
+import moe.ouom.neriplayer.core.player.resolver.bili.isBiliErrorResponseContentType
+import moe.ouom.neriplayer.core.player.resolver.bili.shouldUseBiliResumableRange
 import java.io.IOException
 
 /**
@@ -294,6 +296,12 @@ internal class ResumableChunkedHttpDataSource(
             val delegate = upstreamFactory.createDataSource()
             try {
                 val openLength = delegate.open(chunkSpec)
+                val contentType = delegate.responseHeaders.headerValue("Content-Type")
+                if (shouldUseBiliResumableRange(chunkSpec.uri.toString()) &&
+                    isBiliErrorResponseContentType(contentType)
+                ) {
+                    throw HttpDataSource.InvalidContentTypeException(contentType.orEmpty(), chunkSpec)
+                }
                 OpenedChunk(
                     delegate = delegate,
                     chunkSpec = chunkSpec,

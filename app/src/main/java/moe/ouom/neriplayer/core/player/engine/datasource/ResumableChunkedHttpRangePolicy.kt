@@ -4,6 +4,8 @@ package moe.ouom.neriplayer.core.player.engine.datasource
 
 import android.net.Uri
 import androidx.media3.datasource.DataSpec
+import moe.ouom.neriplayer.core.player.resolver.bili.shouldUseBiliResumableRange
+import moe.ouom.neriplayer.core.player.resolver.bili.validateBiliRangeResponse
 import moe.ouom.neriplayer.core.player.resolver.netease.normalizeNeteaseFlacResponseContentType
 import moe.ouom.neriplayer.core.player.resolver.netease.shouldUseNeteaseFlacResumableRange
 import moe.ouom.neriplayer.core.player.resolver.netease.validateNeteaseFlacRangeResponse
@@ -28,6 +30,7 @@ internal fun shouldUseResumableChunkedHttpRange(dataSpec: DataSpec): Boolean {
         !ResumableHttpRangeSupport.hasExplicitRangeHeader(dataSpec.httpRequestHeaders) &&
         (
             YouTubeGoogleVideoRangeSupport.shouldUseChunkedRange(dataSpec.uri) ||
+                shouldUseBiliResumableRange(dataSpec.uri.toString()) ||
                 shouldUseNeteaseFlacResumableRange(dataSpec.uri)
             )
 }
@@ -35,5 +38,8 @@ internal fun shouldUseResumableChunkedHttpRange(dataSpec: DataSpec): Boolean {
 internal val defaultResumableChunkedHttpRangePolicy = ResumableChunkedHttpRangePolicy(
     shouldUse = ::shouldUseResumableChunkedHttpRange,
     normalizeResponseHeaders = ::normalizeNeteaseFlacResponseContentType,
-    validateResponse = ::validateNeteaseFlacRangeResponse
+    validateResponse = { uri, code, headers, position ->
+        validateNeteaseFlacRangeResponse(uri, code, headers, position)
+        validateBiliRangeResponse(uri.toString(), code, headers, position)
+    }
 )

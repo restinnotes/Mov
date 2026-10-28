@@ -2,9 +2,18 @@ package moe.ouom.neriplayer.core.player.engine.datasource
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ResumableHttpRangeSupportTest {
+
+    @Test
+    fun partialContentWithUnknownTotalDoesNotTruncateAudioToOneChunk() {
+        assertNull(ResumableHttpRangeSupport.resolveTotalContentLength(
+            "https://upos-sz-mirror.bilivideo.com/audio.m4s",
+            mapOf("Content-Range" to listOf("bytes 0-1048575/*"), "Content-Length" to listOf("1048576"))
+        ))
+    }
 
     @Test
     fun resolveQueryContentLengthReadsClenFromUrl() {

@@ -64,7 +64,20 @@ internal fun isBiliStreamUrl(url: String): Boolean {
         lower.contains("bilivideo")
 }
 
+/**
+ * 是否命中 P2P CDN（mcdn / :8082）。
+ *
+ * 实测这类节点在跨洋链路上经常中途断流（8MB 左右反复 403/断连），
+ * 选路时必须排到最后，绝不能优先。
+ */
+internal fun isUnstableBiliP2pCdnUrl(url: String): Boolean {
+    val lower = url.lowercase()
+    return lower.contains("mcdn") || lower.contains(":8082")
+}
+
 private fun scoreBiliStreamUrl(url: String): Int {
+    // P2P 节点再怎么“像官方 host”也不能排前面
+    if (isUnstableBiliP2pCdnUrl(url)) return -1
     val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
     return when {
         host.startsWith("upos-") && host.contains("bilivideo.") -> 3

@@ -521,6 +521,7 @@ object PlayerManager {
     internal var playbackPositionGeneration: Long = 0L
     internal var lastUrlRefreshKey: String? = null
     internal var lastUrlRefreshAtMs: Long = 0L
+    internal var lastMediaFormatRefreshRequestToken: Long? = null
     internal var currentMediaUrlResolvedAtMs: Long = 0L
     internal var currentPlaybackDemandCacheKey: String? = null
     internal var restoredResumePositionMs: Long = 0L

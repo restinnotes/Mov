@@ -20,7 +20,29 @@ class BiliAudioSelectorTest {
             "https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/demo.m4s",
             prioritized.first()
         )
-        assertTrue(prioritized.last().contains("mountaintoys.cn"))
+        assertTrue(prioritized.last().contains("mcdn.bilivideo.cn"))
+    }
+
+    @Test
+    fun prioritizeBiliStreamUrls_pushesUnstableP2pCdnToLastEvenWhenPrimary() {
+        val prioritized = prioritizeBiliStreamUrls(
+            primaryUrl = "https://xy123x45x67x89xy.mcdn.bilivideo.cn:8082/v1/resource/demo.m4s",
+            backupUrls = listOf(
+                "https://upos-sz-mirrorali.bilivideo.com/upgcxcode/demo.m4s",
+                "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/demo.m4s"
+            )
+        )
+
+        assertTrue(prioritized.last().contains("mcdn.bilivideo.cn"))
+        assertEquals(3, prioritized.size)
+    }
+
+    @Test
+    fun isUnstableBiliP2pCdnUrl_matchesMcdnAndPort8082() {
+        assertTrue(isUnstableBiliP2pCdnUrl("https://xy1.mcdn.bilivideo.com/v1/resource/x.m4s"))
+        assertTrue(isUnstableBiliP2pCdnUrl("https://xy1.example.com:8082/v1/resource/x.m4s"))
+        assertTrue(!isUnstableBiliP2pCdnUrl("https://upos-sz-mirrorali.bilivideo.com/upgcxcode/x.m4s"))
+        assertTrue(!isUnstableBiliP2pCdnUrl("https://upos-hz-mirrorakam.akamaized.net/upgcxcode/x.m4s"))
     }
 
     @Test

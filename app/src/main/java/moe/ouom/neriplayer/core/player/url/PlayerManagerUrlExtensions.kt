@@ -231,7 +231,7 @@ internal suspend fun PlayerManager.resolveSongUrl(
     val cacheIntegrity = if (forceRefresh) {
         NPLogger.d(
             "NERI-PlayerManager",
-            "resolveSongUrl: bypass complete YouTube cache for forced refresh: $cacheKey"
+            "resolveSongUrl: bypass complete playback cache for forced refresh: $cacheKey"
         )
         CachedResourceIntegrity(false, false, 0L)
     } else {
@@ -632,13 +632,27 @@ internal fun PlayerManager.shouldAttemptUrlRefresh(
     isOfflineCache: Boolean
 ): Boolean {
     if (song == null) return false
+    if (!shouldAllowMediaFormatRefresh(error, playbackRequestToken, lastMediaFormatRefreshRequestToken)) {
+        return false
+    }
     return shouldAttemptCachedPlaybackRepair(
         error = error,
         isOfflineCache = isOfflineCache,
         isYouTubeTrack = isYouTubeMusicTrack(song),
         isLocalSong = isLocalSong(song)
-    )
+    ).also { shouldRefresh ->
+        if (shouldRefresh && isRecoverableCachedMediaFormatError(error)) {
+            lastMediaFormatRefreshRequestToken = playbackRequestToken
+        }
+    }
 }
+
+internal fun shouldAllowMediaFormatRefresh(
+    error: PlaybackException,
+    requestToken: Long,
+    lastFormatRefreshRequestToken: Long?
+): Boolean = !isRecoverableCachedMediaFormatError(error) ||
+    requestToken != lastFormatRefreshRequestToken
 
 internal fun shouldAttemptCachedPlaybackRepair(
     error: PlaybackException,
@@ -651,12 +665,26 @@ internal fun shouldAttemptCachedPlaybackRepair(
     if (isYouTubeTrack) {
         return shouldAttemptYouTubePlaybackRecovery(error, isOfflineCache)
     }
-    return isRecoverableRemotePlaybackCacheError(error)
+    return isRecoverableRemotePlaybackCacheError(error) ||
+        isProvenBadRemoteMediaBytes(error)
+}
+
+/**
+ * 解析/解码失败说明已经落盘（或正在读）的字节本身是坏的：
+ * 错误页、截断、混了两种表示。只换线路不删 key 的话，
+ * 下一个候选读到的还是同一份坏字节。必须删 key 再换线路。
+ */
+internal fun isProvenBadRemoteMediaBytes(error: PlaybackException): Boolean {
+    return isRecoverableCachedMediaFormatError(error)
 }
 
 internal fun shouldInvalidateCachedResourceForPlaybackRecovery(
     error: PlaybackException
-): Boolean = isRecoverableRemotePlaybackCacheError(error)
+): Boolean {
+    if (shouldPreserveCacheOnTransientNetworkError(error)) return false
+    return isRecoverableRemotePlaybackCacheError(error) ||
+        isProvenBadRemoteMediaBytes(error)
+}
 
 internal fun shouldInvalidateCacheForPlaybackRecovery(
     error: PlaybackException,
@@ -677,6 +705,21 @@ internal fun isRecoverableRemotePlaybackCacheError(error: PlaybackException): Bo
         error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
         error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
         error.errorCode == PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE ||
+        error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
+        (
+            error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT &&
+                !shouldTreatPlaybackFailureAsTrackEnd(error)
+            )
+}
+
+/**
+ * 跨洋抖动（timeout / 连接失败 / 未知 IO 中断）只说明“这条线路这一下不行”，
+ * 不能证明“已下好的缓存字节是坏的”。删整段缓存只会让回拖也加载不回去，
+ * 所以这类错误只换线路重试，不删缓存。
+ */
+internal fun shouldPreserveCacheOnTransientNetworkError(error: PlaybackException): Boolean {
+    return error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT ||
+        error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
         error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
         (
             error.errorCode == PlaybackException.ERROR_CODE_TIMEOUT &&
@@ -959,7 +1002,7 @@ private suspend fun PlayerManager.runRefreshOperation(
         }
         val result = resolveSongUrl(
             song = song,
-            forceRefresh = isYouTubeMusicTrack(song),
+            forceRefresh = true,
             youtubeRecoveryStrategy = semantics.youtubeRecoveryStrategy,
             sideEffects = RefreshResolverSideEffects(refreshSideEffectGate(semantics, song)),
             playbackRequestTokenOverride = semantics.requestGeneration,
@@ -1678,16 +1721,7 @@ private suspend fun PlayerManager.getBiliAudioUrl(
 
         if (audioStream?.url != null) {
             NPLogger.d("NERI-PlayerManager-BiliAudioUrl", audioStream.url)
-            SongUrlResult.Success(
-                url = audioStream.url,
-                candidateUrls = audioStream.candidateUrls,
-                mimeType = audioStream.mimeType,
-                expectedContentLength = null,
-                audioInfo = buildBiliPlaybackAudioInfo(audioStream, availableStreams) {
-                    getLocalizedString(it)
-                },
-                representationIdentity = buildBiliRepresentationIdentity(audioStream)
-            )
+            buildBiliSuccessResult(audioStream, availableStreams) { getLocalizedString(it) }
         } else {
             if (!suppressError) {
                 sideEffects.emitError {

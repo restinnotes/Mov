@@ -11,6 +11,36 @@ import org.junit.Test
 class PlayerUrlResolverTest {
 
     @Test
+    fun biliFormatFailureCanFallBackFromHiresThroughRegularAudioWithCorrectMetadata() {
+        val hires = biliStream(30251, "audio/flac", 1200, "hires")
+        val high = biliStream(30280, "audio/mp4", 192)
+        val medium = biliStream(30232, "audio/mp4", 128)
+        val result = buildBiliSuccessResult(hires, listOf(medium, hires, high, high)) { it.toString() }
+        val candidates = result.playbackCandidates()
+
+        assertEquals(listOf(hires.url, high.url, medium.url), candidates.map { it.url })
+        assertEquals(listOf("hires", "high", "medium"), candidates.map { it.audioInfo?.qualityKey })
+        assertEquals(listOf("audio/flac", "audio/mp4", "audio/mp4"), candidates.map { it.mimeType })
+        assertEquals(3, candidates.map { it.representationIdentity }.distinct().size)
+    }
+
+    @Test
+    fun biliFallbackKeepsBackupCdnsBeforeLowerQualityAndDoesNotUpgradePreference() {
+        val high = biliStream(30280, "audio/mp4", 192).let {
+            it.copy(candidateUrls = listOf(it.url, "https://backup.bilivideo.com/audio.m4s"))
+        }
+        val hires = biliStream(30251, "audio/flac", 1200, "hires")
+        val low = biliStream(30216, "audio/mp4", 64)
+        val candidates = buildBiliSuccessResult(high, listOf(hires, low, high)) { it.toString() }.playbackCandidates()
+
+        assertEquals(listOf(high.url, high.candidateUrls.last(), low.url), candidates.map { it.url })
+        assertEquals(candidates[0].representationIdentity, candidates[1].representationIdentity)
+    }
+
+    private fun biliStream(id: Int, mime: String, bitrate: Int, tag: String? = null) =
+        BiliAudioStreamInfo(id, mime, bitrate, tag, "https://upos-sz-mirror.bilivideo.com/$id.m4s")
+
+    @Test
     fun buildYouTubeOfflineCacheAudioInfo_usesPreferredQualityAndSource() {
         val audioInfo = buildYouTubeOfflineCacheAudioInfo("high") { it.toString() }
 

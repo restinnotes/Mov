@@ -154,6 +154,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -2152,12 +2153,7 @@ private fun LinkedCollectionRow(
         }
         Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            SearchResultTitle(text = title)
             Text(
                 text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -2227,6 +2223,19 @@ private fun SearchLoadMoreErrorRow(
 }
 
 @Composable
+internal fun SearchResultTitle(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleMedium.copy(
+            fontSize = 15.sp,
+            lineHeight = 20.sp
+        ),
+        softWrap = true,
+        maxLines = Int.MAX_VALUE
+    )
+}
+
+@Composable
 internal fun SongRow(
     index: Int,
     song: SongItem,
@@ -2288,12 +2297,7 @@ internal fun SongRow(
         }
 
         Column(Modifier.weight(1f)) {
-            Text(
-                text = song.displayName(),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.titleMedium
-            )
+            SearchResultTitle(text = song.displayName())
             Text(
                 text = listOfNotNull(
                     song.displayArtist().takeIf { it.isNotBlank() },

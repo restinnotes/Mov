@@ -2117,6 +2117,8 @@ internal fun PlayerManager.startProgressUpdates() {
             _playbackPositionMs.value = positionMs
             if (!playbackProgressAdvanceReported && isPlaybackActuallyAdvancing()) {
                 playbackProgressAdvanceReported = true
+                // 只有实际播放推进后才允许下一次格式修复，避免失败音轨无限刷新。
+                lastMediaFormatRefreshRequestToken = null
                 startupStallRecoveryAttempts = 0
                 cancelPlaybackStartupWatchdog(reason = "position_advanced")
                 PlaybackTransitionWakeLock.release(

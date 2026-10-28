@@ -103,8 +103,8 @@ internal object ResumableHttpRangeSupport {
         url: String,
         headers: Map<String, List<String>>
     ): Long? {
-        val fromContentRange = firstHeaderValue(headers, "Content-Range")
-            ?.let(::parseContentRangeTotal)
+        val contentRange = firstHeaderValue(headers, "Content-Range")
+        val fromContentRange = contentRange?.let(::parseContentRangeTotal)
             ?.takeIf { it > 0L }
         if (fromContentRange != null) {
             return fromContentRange
@@ -114,6 +114,9 @@ internal object ResumableHttpRangeSupport {
         if (fromQuery != null) {
             return fromQuery
         }
+
+        // Partial Content 的 Content-Length 只代表本段，不能当作整个音频的长度。
+        if (contentRange != null) return null
 
         return firstHeaderValue(headers, "Content-Length")
             ?.toLongOrNull()

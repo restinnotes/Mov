@@ -146,8 +146,12 @@ object NPLogger {
     }
 
     private fun log(level: Int, tag: String?, message: Any?, tr: Throwable? = null) {
+        // Classical debug 包需要完整 logcat 才能定位跨洋播放问题:
+        // BuildConfig.CLASSICAL_LOW_POWER 为 true 且 debuggable 时放行全部级别
+        val forceVerboseLogcat =
+            BuildConfig.CLASSICAL_LOW_POWER && BuildConfig.DEBUG
         // Release 构建中不输出 DEBUG/VERBOSE 级别日志到 logcat，防止敏感信息泄露
-        if (!BuildConfig.DEBUG && (level == Log.DEBUG || level == Log.VERBOSE)) {
+        if (!forceVerboseLogcat && !BuildConfig.DEBUG && (level == Log.DEBUG || level == Log.VERBOSE)) {
             if (isFileLoggingEnabled && level == Log.DEBUG) {
                 val finalTag = if (tag != null && tag != appTag) "$appTag: $tag" else appTag
                 writeToFile(level, finalTag, formatMessage(message), tr)

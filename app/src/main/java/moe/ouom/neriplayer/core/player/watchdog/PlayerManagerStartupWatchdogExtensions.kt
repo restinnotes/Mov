@@ -368,7 +368,10 @@ internal fun PlayerManager.trySwitchToNextPlaybackCandidateForRecovery(
     val candidate = activePlaybackCandidates.getOrNull(nextIndex) ?: return false
 
     val staleCacheKey = currentPlaybackCacheKeyForRecovery()
-    val resumePositionMs = player.currentPosition.coerceAtLeast(0L)
+    val resumePositionMs = pendingSeekPositionOrNull() ?: maxOf(
+        player.currentPosition.coerceAtLeast(0L),
+        _playbackPositionMs.value.coerceAtLeast(0L)
+    )
     activePlaybackUrlIndex = nextIndex
     activePlaybackResumePositionMs = resumePositionMs
     NPLogger.w(
@@ -402,8 +405,7 @@ private suspend fun PlayerManager.applyPlaybackCandidate(
     if (
         shouldInvalidateStalePlaybackCache(
             invalidateCurrentCache = invalidateCurrentCache,
-            staleCacheKey = staleCacheKey,
-            nextCacheKey = cacheKey
+            staleCacheKey = staleCacheKey
         )
     ) {
         invalidateCachedResourceForPlaybackRecovery(
@@ -462,12 +464,10 @@ private suspend fun PlayerManager.applyPlaybackCandidate(
 
 internal fun shouldInvalidateStalePlaybackCache(
     invalidateCurrentCache: Boolean,
-    staleCacheKey: String?,
-    nextCacheKey: String
+    staleCacheKey: String?
 ): Boolean {
-    return invalidateCurrentCache &&
-        !staleCacheKey.isNullOrBlank() &&
-        staleCacheKey != nextCacheKey
+    // 同一音轨的备用 CDN 共用 key；确认需要清理时必须先移除，才能读到新字节。
+    return invalidateCurrentCache && !staleCacheKey.isNullOrBlank()
 }
 
 internal fun PlayerManager.shouldTreatReadyAtStartAsUnhealthyPrepared(): Boolean {

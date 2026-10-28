@@ -13,19 +13,17 @@ class PlayerManagerPlaybackCandidateRecoveryTest {
         assertFalse(
             shouldInvalidateStalePlaybackCache(
                 invalidateCurrentCache = false,
-                staleCacheKey = "current-cache",
-                nextCacheKey = "fallback-cache"
+                staleCacheKey = "current-cache"
             )
         )
     }
 
     @Test
-    fun `candidate recovery keeps a cache key that the next candidate reuses`() {
-        assertFalse(
+    fun `candidate recovery removes bad bytes even when the next CDN reuses the key`() {
+        assertTrue(
             shouldInvalidateStalePlaybackCache(
                 invalidateCurrentCache = true,
-                staleCacheKey = "shared-cache",
-                nextCacheKey = "shared-cache"
+                staleCacheKey = "shared-cache"
             )
         )
     }
@@ -35,10 +33,16 @@ class PlayerManagerPlaybackCandidateRecoveryTest {
         assertTrue(
             shouldInvalidateStalePlaybackCache(
                 invalidateCurrentCache = true,
-                staleCacheKey = "stale-cache",
-                nextCacheKey = "fallback-cache"
+                staleCacheKey = "stale-cache"
             )
         )
+    }
+
+    @Test
+    fun `transient failure keeps shared cached bytes and missing keys are ignored`() {
+        assertFalse(shouldInvalidateStalePlaybackCache(false, "shared-cache"))
+        assertFalse(shouldInvalidateStalePlaybackCache(true, null))
+        assertFalse(shouldInvalidateStalePlaybackCache(true, " "))
     }
 
     @Test

@@ -15,6 +15,17 @@ import org.junit.Test
 class PlayerManagerYouTubePlaybackRecoveryTest {
 
     @Test
+    fun `repeated format failures refresh once per playback request`() {
+        val error = playbackError(PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED)
+        assertTrue(shouldAllowMediaFormatRefresh(error, 5L, null))
+        assertFalse(shouldAllowMediaFormatRefresh(error, 5L, 5L))
+        assertTrue(shouldAllowMediaFormatRefresh(error, 6L, 5L))
+        assertTrue(shouldAllowMediaFormatRefresh(
+            playbackError(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT), 5L, 5L
+        ))
+    }
+
+    @Test
     fun `youtube playback keeps opus primary cache key separate from m4a recovery`() {
         assertEquals(
             "ytmusic-fbvvS8e1KgI-very_high",
@@ -145,7 +156,91 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `remote timeout refreshes the resource so a bad cache entry is discarded`() {
+    fun `transient cross-ocean network errors keep already-downloaded cache`() {
+        val transientCodes = listOf(
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT,
+            PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+            PlaybackException.ERROR_CODE_TIMEOUT
+        )
+        for (code in transientCodes) {
+            val error = playbackError(code)
+            assertTrue(
+                "code=$code should still attempt repair",
+                shouldAttemptCachedPlaybackRepair(
+                    error = error,
+                    isOfflineCache = false,
+                    isYouTubeTrack = false,
+                    isLocalSong = false
+                )
+            )
+            assertFalse(
+                "code=$code must not delete downloaded cache",
+                shouldInvalidateCachedResourceForPlaybackRecovery(error)
+            )
+            assertTrue(
+                "code=$code is transient",
+                shouldPreserveCacheOnTransientNetworkError(error)
+            )
+        }
+    }
+
+    @Test
+    fun `http status and content errors still invalidate a bad cache entry`() {
+        val invalidatingCodes = listOf(
+            PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS,
+            PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE,
+            PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE
+        )
+        for (code in invalidatingCodes) {
+            val error = playbackError(code)
+            assertTrue(
+                "code=$code should invalidate",
+                shouldInvalidateCachedResourceForPlaybackRecovery(error)
+            )
+            assertFalse(
+                "code=$code is not transient",
+                shouldPreserveCacheOnTransientNetworkError(error)
+            )
+        }
+    }
+
+    @Test
+    fun `proven-bad remote bytes attempt repair and invalidate the poisoned key`() {
+        val badBytesCodes = listOf(
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED,
+            PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED,
+            PlaybackException.ERROR_CODE_DECODING_FAILED
+        )
+        for (code in badBytesCodes) {
+            val error = playbackError(code)
+            assertTrue(
+                "code=$code is proven-bad bytes",
+                isProvenBadRemoteMediaBytes(error)
+            )
+            assertTrue(
+                "code=$code should attempt repair on remote tracks",
+                shouldAttemptCachedPlaybackRepair(
+                    error = error,
+                    isOfflineCache = false,
+                    isYouTubeTrack = false,
+                    isLocalSong = false
+                )
+            )
+            assertTrue(
+                "code=$code must invalidate the poisoned cache key",
+                shouldInvalidateCachedResourceForPlaybackRecovery(error)
+            )
+            assertFalse(
+                "code=$code is not transient network jitter",
+                shouldPreserveCacheOnTransientNetworkError(error)
+            )
+        }
+    }
+
+    @Test
+    fun `transient timeout retries the same cache entry instead of discarding it`() {
         val error = playbackError(PlaybackException.ERROR_CODE_TIMEOUT)
         assertTrue(
             shouldAttemptCachedPlaybackRepair(
@@ -155,7 +250,7 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
                 isLocalSong = false
             )
         )
-        assertTrue(
+        assertFalse(
             shouldInvalidateCachedResourceForPlaybackRecovery(
                 error = error
             )
@@ -175,10 +270,10 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `remote decoder failure does not trigger generic cache recovery`() {
+    fun `remote decoder failure retries with a fresh cache key after proven-bad bytes`() {
         val error = playbackError(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED)
 
-        assertFalse(
+        assertTrue(
             shouldAttemptCachedPlaybackRepair(
                 error = error,
                 isOfflineCache = false,
@@ -186,7 +281,7 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
                 isLocalSong = false
             )
         )
-        assertFalse(
+        assertTrue(
             shouldInvalidateCachedResourceForPlaybackRecovery(
                 error = error
             )
@@ -194,10 +289,10 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `remote parsing failure does not trigger generic cache recovery`() {
+    fun `remote parsing failure retries with a fresh cache key after proven-bad bytes`() {
         val error = playbackError(PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED)
 
-        assertFalse(
+        assertTrue(
             shouldAttemptCachedPlaybackRepair(
                 error = error,
                 isOfflineCache = false,
@@ -205,7 +300,7 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
                 isLocalSong = false
             )
         )
-        assertFalse(
+        assertTrue(
             shouldInvalidateCachedResourceForPlaybackRecovery(
                 error = error
             )
@@ -213,7 +308,7 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `youtube format recovery retains a remote cache entry`() {
+    fun `youtube format recovery also drops the poisoned cache key`() {
         val error = playbackError(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED)
 
         assertTrue(
@@ -224,12 +319,12 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
                 isLocalSong = false
             )
         )
-        assertFalse(
+        assertTrue(
             shouldInvalidateCachedResourceForPlaybackRecovery(
                 error = error
             )
         )
-        assertFalse(
+        assertTrue(
             shouldInvalidateCacheAfterPlaybackFailure(
                 shouldInvalidateCache = shouldInvalidateCachedResourceForPlaybackRecovery(error),
                 isOfflineCache = false
@@ -238,10 +333,13 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `unrecoverable remote network failure invalidates its cache`() {
+    fun `transient remote network failure retries without invalidating cache`() {
         val error = playbackError(PlaybackException.ERROR_CODE_TIMEOUT)
 
-        assertTrue(
+        assertFalse(
+            shouldInvalidateCachedResourceForPlaybackRecovery(error)
+        )
+        assertFalse(
             shouldInvalidateCacheAfterPlaybackFailure(
                 shouldInvalidateCache = shouldInvalidateCachedResourceForPlaybackRecovery(error),
                 isOfflineCache = false
@@ -272,10 +370,10 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `remote decoder error retains cache because decoder support is not cache corruption`() {
+    fun `remote decoder error invalidates cache because bytes are proven bad`() {
         val error = playbackError(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED)
 
-        assertFalse(
+        assertTrue(
             shouldInvalidateCacheForPlaybackRecovery(
                 error = error,
                 isOfflineCache = false
@@ -303,7 +401,7 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
     }
 
     @Test
-    fun `other media3 stuck timeouts retain normal recovery behavior`() {
+    fun `buffering stall timeout also retries without discarding downloaded bytes`() {
         val error = PlaybackException(
             "test",
             StuckPlayerException(
@@ -313,7 +411,7 @@ class PlayerManagerYouTubePlaybackRecoveryTest {
             PlaybackException.ERROR_CODE_TIMEOUT
         )
 
-        assertTrue(shouldInvalidateCachedResourceForPlaybackRecovery(error))
+        assertFalse(shouldInvalidateCachedResourceForPlaybackRecovery(error))
         assertTrue(shouldAttemptYouTubePlaybackRecovery(error, isOfflineCache = false))
         assertFalse(shouldTreatPlaybackFailureAsTrackEnd(error))
     }
