@@ -20,6 +20,14 @@ internal data class AudioLoadControlPolicy(
     val backBufferMs: Int = 60_000
 )
 
+internal fun defaultAudioLoadControlPolicy(classical: Boolean): AudioLoadControlPolicy =
+    if (classical) {
+        // Keep startup fast, but cover longer CDN jitter on long-form overseas playback.
+        AudioLoadControlPolicy(minBufferMs = 30_000, maxBufferMs = 90_000)
+    } else {
+        AudioLoadControlPolicy()
+    }
+
 internal fun buildAudioLoadControl(
     policy: AudioLoadControlPolicy = AudioLoadControlPolicy()
 ): LoadControl {

@@ -19,6 +19,23 @@ class AudioLoadControlFactoryTest {
     private val mediaPeriodId = MediaPeriodId("audio-load-control-period")
 
     @Test
+    fun `classical buffers more jitter without delaying startup or rebuffer recovery`() {
+        val loadControl = buildAudioLoadControl(defaultAudioLoadControlPolicy(classical = true))
+        loadControl.onPrepared(playerId)
+
+        assertFalse(loadControl.shouldStart(999))
+        assertTrue(loadControl.shouldStart(1_000))
+        assertFalse(loadControl.shouldStart(2_999, rebuffering = true))
+        assertTrue(loadControl.shouldStart(3_000, rebuffering = true))
+        assertTrue(loadControl.shouldContinueLoading(parameters(bufferedDurationMs = 29_999)))
+        assertTrue(loadControl.shouldContinueLoading(parameters(bufferedDurationMs = 60_000)))
+        assertFalse(loadControl.shouldContinueLoading(parameters(bufferedDurationMs = 90_000)))
+        assertEquals(60_000L, loadControl.getBackBufferDurationUs(playerId) / 1_000)
+
+        loadControl.onReleased(playerId)
+    }
+
+    @Test
     fun `audio playback starts after one second`() {
         val loadControl = buildAudioLoadControl()
 

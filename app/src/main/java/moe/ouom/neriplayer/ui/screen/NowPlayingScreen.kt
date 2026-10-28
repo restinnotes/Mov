@@ -3790,7 +3790,9 @@ fun NowPlayingScreen(
                         moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
                             currentSong = currentSong,
                             coverUrl = currentCoverUrl,
-                            isPlaying = isPlaying,
+                            isPlaying = isPlaybackControlPlaying,
+                            isPlaybackWaiting = isPlaybackWaiting,
+                            isAudioRouteMuted = isAudioRouteMuted,
                             isFavorite = isFavorite,
                             onToggleFavorite = {
                                 val song = currentSong ?: return@BBPlayerPlaybackPortraitContent
@@ -3815,6 +3817,8 @@ fun NowPlayingScreen(
                             onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
                             onOpenComments = { showCommentsScreen = true },
                             onOpenQueue = { showQueueSheet = true },
+                            sleepTimerActive = sleepTimerState.isActive,
+                            onOpenSleepTimer = { showSleepTimerDialog = true },
                             onOpenMoreOptions = { showMoreOptions = true },
                             onNavigateUp = onNavigateUp,
                             onOpenArtist = openCurrentArtist,

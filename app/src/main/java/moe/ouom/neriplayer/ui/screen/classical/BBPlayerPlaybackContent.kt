@@ -24,7 +24,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
@@ -35,6 +34,7 @@ import androidx.compose.material.icons.outlined.FormatListBulleted
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -60,7 +61,9 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.player.PlayerManager
+import moe.ouom.neriplayer.ui.component.playback.PlaybackControlIndicator
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.data.model.displayArtist
 import moe.ouom.neriplayer.data.model.displayName
@@ -75,7 +78,7 @@ import moe.ouom.neriplayer.util.format.formatDuration
  * - 标题栏：左侧大字标题 (加粗) + 作者 (点击进 UP 主)，右侧爱心收藏
  * - 进度条：简洁 Slider + 左右两端时间 ("00:04" / "01:45:52")，无杂乱码率文本
  * - 主控区：上一首、大号圆形边框播放/暂停按钮 (直径 76dp)、下一首
- * - 次控区：随机播放、循环模式、评论气泡、播放队列
+ * - 次控区：随机播放、循环模式、定时关闭、评论气泡、播放队列
  * - 无底部悬浮药丸 dock，无歌词分页
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,6 +87,8 @@ fun BBPlayerPlaybackPortraitContent(
     currentSong: SongItem?,
     coverUrl: String?,
     isPlaying: Boolean,
+    isPlaybackWaiting: Boolean,
+    isAudioRouteMuted: Boolean,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     playbackDurationMs: Long,
@@ -97,6 +102,8 @@ fun BBPlayerPlaybackPortraitContent(
     onCycleRepeatMode: () -> Unit,
     onOpenComments: () -> Unit,
     onOpenQueue: () -> Unit,
+    sleepTimerActive: Boolean,
+    onOpenSleepTimer: () -> Unit,
     onOpenMoreOptions: () -> Unit,
     onNavigateUp: () -> Unit,
     onOpenArtist: () -> Unit,
@@ -140,7 +147,10 @@ fun BBPlayerPlaybackPortraitContent(
                 )
             }
             Text(
-                text = "正在播放",
+                text = stringResource(
+                    if (isPlaybackWaiting && !isAudioRouteMuted) R.string.player_waiting
+                    else R.string.player_now_playing
+                ),
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Medium,
                     fontSize = 17.sp
@@ -313,11 +323,18 @@ fun BBPlayerPlaybackPortraitContent(
                     .clickable(onClick = onTogglePlayPause),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) "暂停" else "播放",
+                PlaybackControlIndicator(
+                    isPlaying = isPlaying,
+                    isPlaybackWaiting = isPlaybackWaiting,
+                    isAudioRouteMuted = isAudioRouteMuted,
+                    playContentDescription = stringResource(R.string.player_play),
+                    pauseContentDescription = stringResource(R.string.player_pause),
+                    waitingContentDescription = stringResource(R.string.player_waiting),
+                    restoreVolumeContentDescription = stringResource(R.string.player_restore_volume),
                     modifier = Modifier.size(38.dp),
-                    tint = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
+                    progressIndicatorSize = 38.dp,
+                    progressStrokeWidth = 3.dp
                 )
             }
 
@@ -336,7 +353,7 @@ fun BBPlayerPlaybackPortraitContent(
 
         Spacer(Modifier.height(20.dp))
 
-        // 6. 次级控制区 (4 个图标横排，两端对齐)：随机、循环、评论、队列
+        // 6. 次级控制区：随机、循环、定时关闭、评论、队列
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -364,6 +381,17 @@ fun BBPlayerPlaybackPortraitContent(
                     contentDescription = "循环模式",
                     modifier = Modifier.size(24.dp),
                     tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = onOpenSleepTimer, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Outlined.Timer,
+                    contentDescription = stringResource(
+                        if (sleepTimerActive) R.string.sleep_timer_running else R.string.sleep_timer_title
+                    ),
+                    modifier = Modifier.size(24.dp),
+                    tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             IconButton(onClick = onOpenComments, modifier = Modifier.size(40.dp)) {

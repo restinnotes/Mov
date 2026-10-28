@@ -7,6 +7,23 @@ import org.junit.Test
 class BiliAudioSelectorTest {
 
     @Test
+    fun prioritizeBiliStreamUrls_keepsOverseasAkamaiPrimaryAheadOfDomesticBackup() {
+        val overseas = "https://upos-hz-mirrorakam.akamaized.net/upgcxcode/demo.m4s"
+        val domestic = "https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/demo.m4s"
+
+        assertEquals(listOf(overseas, domestic), prioritizeBiliStreamUrls(overseas, listOf(domestic)))
+        assertEquals(listOf(domestic, overseas), prioritizeBiliStreamUrls(domestic, listOf(overseas)))
+    }
+
+    @Test
+    fun prioritizeBiliStreamUrls_preservesApiOrderAcrossRegularCdnHosts() {
+        val primary = "https://cn.example.bilivideo.cn/upgcxcode/demo.m4s"
+        val backup = "https://upos-sz-mirrorcos.bilivideo.com/upgcxcode/demo.m4s"
+
+        assertEquals(listOf(primary, backup), prioritizeBiliStreamUrls(primary, listOf(backup, primary)))
+    }
+
+    @Test
     fun prioritizeBiliStreamUrls_prefersBilivideoHostsOverMountaintoys() {
         val prioritized = prioritizeBiliStreamUrls(
             primaryUrl = "https://b-demo.edge.mountaintoys.cn/upgcxcode/demo.m4s",

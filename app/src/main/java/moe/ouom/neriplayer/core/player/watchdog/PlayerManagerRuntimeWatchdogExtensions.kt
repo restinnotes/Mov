@@ -179,12 +179,11 @@ private fun PlayerManager.recoverRuntimePlaybackStall(
     if (attempt == 1) {
         runCatching {
             applyAudioFocusPolicyOnMainThread()
-            player.playWhenReady = true
-            player.play()
+            restartRuntimePlaybackAtPosition(player, positionMs)
         }.onFailure { error ->
             NPLogger.w(
                 "NERI-PlaybackWatchdog",
-                "runtime playback soft restart failed",
+                "runtime playback connection restart failed",
                 error
             )
         }
@@ -219,6 +218,16 @@ private fun PlayerManager.recoverRuntimePlaybackStall(
         "NERI-PlaybackWatchdog",
         "runtime playback stall has no alternate source: keep queue and expose retry"
     )
+}
+
+/** play() alone cannot unblock a loader that is already trying to play. */
+internal fun restartRuntimePlaybackAtPosition(player: Player, positionMs: Long) {
+    // stop cancels the old loader while keeping the media item, queue and cache intact.
+    // A same-position seek on its own may be satisfied by the existing sample queue.
+    player.stop()
+    player.seekTo(positionMs.coerceAtLeast(0L))
+    player.prepare()
+    player.play()
 }
 
 private fun PlayerManager.reportRuntimePlaybackStallExhausted(

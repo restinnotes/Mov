@@ -62,6 +62,7 @@ import moe.ouom.neriplayer.core.player.effects.AudioReactive
 import moe.ouom.neriplayer.core.player.engine.PlaybackVolumeNormalizationState
 import moe.ouom.neriplayer.core.player.engine.ReactiveRenderersFactory
 import moe.ouom.neriplayer.core.player.engine.datasource.ConditionalHttpDataSourceFactory
+import moe.ouom.neriplayer.core.player.engine.datasource.buildPlaybackCacheDataSourceFactory
 import moe.ouom.neriplayer.core.player.lyrics.FloatingLyricsOverlayManager
 import moe.ouom.neriplayer.core.player.lyrics.clearExternalBluetoothLyricLine
 import moe.ouom.neriplayer.core.player.lyrics.syncExternalBluetoothLyrics
@@ -431,14 +432,10 @@ internal fun PlayerManager.initializeImpl(
                 androidx.media3.datasource.DefaultDataSource.Factory(app, conditionalFactory)
             } else {
                 cache = mediaCache
-                val cacheDsFactory = CacheDataSource.Factory()
-                    .setCache(mediaCache)
-                    .setUpstreamDataSourceFactory(conditionalFactory)
-                    .setFlags(
-                        CacheDataSource.FLAG_BLOCK_ON_CACHE or
-                            CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
-                    )
-                    .setEventListener(object : CacheDataSource.EventListener {
+                val cacheDsFactory = buildPlaybackCacheDataSourceFactory(
+                    cache = mediaCache,
+                    upstreamFactory = conditionalFactory,
+                    eventListener = object : CacheDataSource.EventListener {
                         override fun onCachedBytesRead(
                             cacheSizeBytes: Long,
                             cachedBytesRead: Long
@@ -454,7 +451,8 @@ internal fun PlayerManager.initializeImpl(
                                 )
                             }
                         }
-                    })
+                    }
+                )
 
                 androidx.media3.datasource.DefaultDataSource.Factory(app, cacheDsFactory)
             }
@@ -481,7 +479,11 @@ internal fun PlayerManager.initializeImpl(
 
         player = ExoPlayer.Builder(app, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
-            .setLoadControl(buildAudioLoadControl())
+            .setLoadControl(
+                buildAudioLoadControl(defaultAudioLoadControlPolicy(
+                    classical = moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled
+                ))
+            )
             .build()
         player.addAnalyticsListener(object : AnalyticsListener {
             override fun onAudioInputFormatChanged(

@@ -136,6 +136,9 @@ internal fun PlayerManager.cancelPlaybackStartupWatchdog(reason: String) {
 
 private fun PlayerManager.shouldWatchPlaybackStartup(): Boolean {
     if (!initialized || isPendingMediaLoadActive()) return false
+    // After actual progress, the runtime watchdog owns rebuffering recovery. Running
+    // both can switch CDNs while the other watchdog is still reopening the loader.
+    if (playbackProgressAdvanceReported && !expeditedYouTubeSeekRecoveryPending) return false
     if (!isPlayerInitialized()) return false
     if (player.currentMediaItem == null || !player.playWhenReady) return false
     if (_currentSongFlow.value == null) return false

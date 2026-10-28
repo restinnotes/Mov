@@ -80,10 +80,11 @@ private fun scoreBiliStreamUrl(url: String): Int {
     if (isUnstableBiliP2pCdnUrl(url)) return -1
     val host = runCatching { URI(url).host.orEmpty().lowercase() }.getOrDefault("")
     return when {
-        host.startsWith("upos-") && host.contains("bilivideo.") -> 3
-        host.contains("bilivideo.") -> 2
+        // 国内与海外常规 CDN 同级，保留接口的就近分配顺序。
+        // 固定把 bilivideo 放在 Akamai 前面，会覆盖海外用户收到的首选线路。
+        host.contains("bilivideo.") || host.endsWith(".akamaized.net") -> 3
         host.endsWith(".mountaintoys.cn") -> 1
-        host.startsWith("upos-") || host.contains("akamaized.net") -> 1
+        host.startsWith("upos-") -> 1
         else -> 0
     }
 }
