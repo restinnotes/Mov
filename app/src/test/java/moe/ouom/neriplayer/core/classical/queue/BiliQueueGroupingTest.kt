@@ -102,6 +102,45 @@ class BiliQueueGroupingTest {
     }
 
     @Test
+    fun `group header sums part durations and knows its range`() {
+        val songs = listOf(
+            local("前"),
+            biliPart("BV1a", 1L, videoTitle = "A"),
+            biliPart("BV1a", 2L, videoTitle = "A").copy(durationMs = 0L),
+            biliPart("BV1a", 3L, videoTitle = "A").copy(durationMs = 90_000L)
+        )
+        val header = groupConsecutiveBiliRuns(songs)
+            .filterIsInstance<BiliQueueRow.GroupHeader>()
+            .single()
+        assertEquals(150_000L, header.totalDurationMs)
+        assertTrue(header.containsQueueIndex(1))
+        assertTrue(header.containsQueueIndex(3))
+        assertTrue(!header.containsQueueIndex(0))
+        assertTrue(!header.containsQueueIndex(4))
+    }
+
+    @Test
+    fun `queue summary counts groups and standalone items as works`() {
+        val songs = listOf(
+            biliPart("BV1a", 1L, videoTitle = "A"),
+            biliPart("BV1a", 2L, videoTitle = "A"),
+            biliPart("BV1b", 3L, videoTitle = "B"),
+            local("本地"),
+            biliPart("BV1c", 4L, videoTitle = "C"),
+            biliPart("BV1c", 5L, videoTitle = "C")
+        )
+        val summary = summarizeBiliQueue(songs)
+        assertEquals(4, summary.workCount)
+        assertEquals(6, summary.itemCount)
+        assertEquals(5 * 60_000L + 1000L, summary.totalDurationMs)
+    }
+
+    @Test
+    fun `queue summary of empty queue is zero`() {
+        assertEquals(BiliQueueSummary(0, 0, 0L), summarizeBiliQueue(emptyList()))
+    }
+
+    @Test
     fun `single bili item renders as plain row`() {
         val songs = listOf(local("前"), biliPart("BV1a", 1L), local("后"))
         val rows = groupConsecutiveBiliRuns(songs)

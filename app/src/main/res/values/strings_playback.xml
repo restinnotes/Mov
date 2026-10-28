@@ -173,4 +173,7 @@
     <string name="nowplaying_equalizer_wait_for_session">开始播放后会应用到当前音频会话</string>
     <string name="nowplaying_equalizer_unsupported">当前设备可能不支持系统均衡器</string>
     <string name="nowplaying_loudness_unsupported">当前设备可能不支持响度增强</string>
+    <!-- Classical queue -->
+    <string name="classical_queue_group_summary_format">%1$s · %2$s</string>
+    <string name="classical_queue_summary_format">%1$s · %2$s · 共 %3$s</string>
 </resources>

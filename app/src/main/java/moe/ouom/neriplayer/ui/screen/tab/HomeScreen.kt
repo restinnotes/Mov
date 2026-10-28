@@ -75,6 +75,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -119,6 +120,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.di.AppContainer
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
+import moe.ouom.neriplayer.core.classical.classicalRecentWorks
+import moe.ouom.neriplayer.data.history.toSongItem
+import moe.ouom.neriplayer.ui.component.classical.ClassicalPlaylistShelf
+import moe.ouom.neriplayer.ui.component.classical.ClassicalRecentShelf
+import moe.ouom.neriplayer.ui.haptic.HapticTextButton
 import moe.ouom.neriplayer.core.download.GlobalDownloadManager
 import moe.ouom.neriplayer.core.download.toPlaybackSongItem
 import moe.ouom.neriplayer.core.player.PlayerManager
@@ -240,7 +247,10 @@ fun HomeScreen(
     topAppBarState: TopAppBarState,
     onScrollAnchorIndexesChanged: (Map<String, Int>) -> Unit = {},
     onOpenRecent: (UsageEntry) -> Unit = {},
-    onSongClick: (List<SongItem>, Int) -> Unit = { _, _ -> }
+    onSongClick: (List<SongItem>, Int) -> Unit = { _, _ -> },
+    onOpenHistory: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
+    onOpenLocalPlaylist: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val appContext = remember(context) { context.applicationContext }
@@ -253,6 +263,11 @@ fun HomeScreen(
         }
     )
     val ui by vm.uiState.collectAsStateWithLifecycle()
+    val classical = ClassicalLowPower.enabled
+    val history by AppContainer.playHistoryRepo.historyFlow.collectAsStateWithLifecycle()
+    val recentWorks = remember(history, classical) {
+        if (classical) classicalRecentWorks(history.map { it.toSongItem() }) else emptyList()
+    }
     val localPlaylistRepo = remember(appContext) { LocalPlaylistRepository.getInstance(appContext) }
     var localPlaylists by remember { mutableStateOf<List<LocalPlaylist>>(emptyList()) }
     var localPlaylistsReady by remember { mutableStateOf(false) }
@@ -284,6 +299,9 @@ fun HomeScreen(
     }
     val localPlaylistUsageLookup = remember(localPlaylists, context) {
         buildLocalPlaylistUsageLookup(localPlaylists, context)
+    }
+    val homePlaylists = remember(localPlaylists) {
+        localPlaylists.filterNot { it.id == LocalFilesPlaylist.SYSTEM_ID }
     }
 
     val hasLocalUsage = remember(usageEntries) {
@@ -357,9 +375,9 @@ fun HomeScreen(
     var wasOffline by remember { mutableStateOf(offlineMode) }
     val windowWidthDp = currentWindowWidthDp()
     val isTabletLayout = windowWidthDp >= 720.dp
-    val pageHorizontalPadding = if (isTabletLayout) 28.dp else 16.dp
+    val pageHorizontalPadding = if (isTabletLayout) 28.dp else if (classical) 8.dp else 16.dp
     val gridMinCellSize = if (isTabletLayout) 156.dp else 120.dp
-    val gridContentPadding = if (isTabletLayout) 14.dp else 8.dp
+    val gridContentPadding = if (isTabletLayout) 14.dp else if (classical) 0.dp else 8.dp
     val gridSpacing = if (isTabletLayout) 14.dp else 10.dp
 
     fun toggleHomeSongFavorite(song: SongItem, isFavorite: Boolean) {
@@ -397,7 +415,7 @@ fun HomeScreen(
     }
 
     val hasVisibleSections =
-            showContinue || (showOnlineFeeds && (showNeteaseTrending || showNeteaseRadar || showRecommendedCard || isInternational))
+            classical || showContinue || (showOnlineFeeds && (showNeteaseTrending || showNeteaseRadar || showRecommendedCard || isInternational))
 
     Box(Modifier.fillMaxSize()) {
         Column(
@@ -406,7 +424,23 @@ fun HomeScreen(
                 .statusBarsPadding()
                 .nestedScroll(scrollBehavior.nestedScrollConnection)
         ) {
-            LargeTopAppBar(
+            if (classical) {
+                TopAppBar(
+                    title = { Text(appBarTitle) },
+                    actions = {
+                        HapticIconButton(
+                            enabled = !offlineMode,
+                            onClick = {
+                                if (isInternational) vm.refreshYtMusicHome() else vm.refreshNeteaseHome()
+                            }
+                        ) {
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.recommend_refresh))
+                        }
+                    },
+                    windowInsets = WindowInsets(0),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                )
+            } else LargeTopAppBar(
                 title = { Text(appBarTitle) },
                 actions = {
                     HapticIconButton(
@@ -508,6 +542,74 @@ fun HomeScreen(
                                 )
                             } else {
                                 SectionLoadingState(homeLoadingText)
+                            }
+                        }
+                    }
+
+                    if (classical) {
+                        item(
+                            key = registerGridItemKey("home:classical:recent:header"),
+                            span = { GridItemSpan(maxLineSpan) }
+                        ) {
+                            SectionHeader(
+                                icon = Icons.Outlined.History,
+                                title = stringResource(R.string.library_recent_played),
+                                onSeeAll = onOpenHistory
+                            )
+                        }
+                        item(
+                            key = registerGridItemKey("home:classical:recent:content"),
+                            span = { GridItemSpan(maxLineSpan) }
+                        ) {
+                            if (recentWorks.isEmpty()) {
+                                Text(
+                                    stringResource(R.string.recent_no_history),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp)
+                                )
+                            } else {
+                                ClassicalRecentShelf(recentWorks, offlineMode) { song ->
+                                    onSongClick(listOf(song), 0)
+                                }
+                            }
+                        }
+                        item(
+                            key = registerGridItemKey("home:classical:playlists:header"),
+                            span = { GridItemSpan(maxLineSpan) }
+                        ) {
+                            SectionHeader(
+                                icon = Icons.AutoMirrored.Outlined.PlaylistPlay,
+                                title = stringResource(R.string.classical_home_my_playlists),
+                                onSeeAll = onOpenLibrary
+                            )
+                        }
+                        item(
+                            key = registerGridItemKey("home:classical:playlists:content"),
+                            span = { GridItemSpan(maxLineSpan) }
+                        ) {
+                            if (!localPlaylistsReady) {
+                                SectionLoadingState(homeLoadingText)
+                            } else if (homePlaylists.isEmpty()) {
+                                HapticTextButton(onClick = onOpenLibrary) {
+                                    Text(stringResource(R.string.library_create_new))
+                                }
+                            } else {
+                                ClassicalPlaylistShelf(homePlaylists, offlineMode) { playlistId ->
+                                    val playlist = homePlaylists.firstOrNull { it.id == playlistId }
+                                    if (playlist != null) {
+                                        AppContainer.launchBackgroundIo {
+                                            AppContainer.playlistUsageRepo.recordOpen(
+                                                id = playlist.id,
+                                                name = playlist.name,
+                                                picUrl = playlist.customCoverUrl ?: playlist.songs.firstOrNull()?.coverUrl,
+                                                trackCount = playlist.songs.size,
+                                                source = PlaylistUsageRepository.SOURCE_LOCAL
+                                            )
+                                        }
+                                    }
+                                    onOpenLocalPlaylist(playlistId)
+                                }
                             }
                         }
                     }
@@ -991,10 +1093,10 @@ private fun neteaseSongSectionIcon(source: NeteaseHomeSongSource): ImageVector {
 }
 
 @Composable
-private fun SectionHeader(icon: ImageVector, title: String) {
+private fun SectionHeader(icon: ImageVector, title: String, onSeeAll: (() -> Unit)? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)
     ) {
         Icon(
             imageVector = icon,
@@ -1006,8 +1108,13 @@ private fun SectionHeader(icon: ImageVector, title: String) {
             text = title,
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 8.dp).weight(1f)
         )
+        if (onSeeAll != null) {
+            HapticTextButton(onClick = onSeeAll, modifier = Modifier.height(36.dp)) {
+                Text(stringResource(R.string.common_all))
+            }
+        }
     }
 }
 

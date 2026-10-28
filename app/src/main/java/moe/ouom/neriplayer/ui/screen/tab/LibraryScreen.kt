@@ -53,6 +53,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Check
@@ -80,6 +81,7 @@ import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBarState
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -118,6 +120,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.di.AppContainer
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
+import moe.ouom.neriplayer.util.format.formatTotalDuration
 import moe.ouom.neriplayer.data.platform.youtube.YouTubeFeatureGate
 import moe.ouom.neriplayer.data.stats.PlaybackStatsPeriod
 import moe.ouom.neriplayer.data.stats.PlaybackStatsHotPlaylist
@@ -254,9 +258,12 @@ private fun rememberHotPlaylists(): List<PlaybackStatsHotPlaylist>? {
 
 internal fun libraryTabDisplayOrder(
     isInternational: Boolean,
-    youtubeEnabled: Boolean = true
+    youtubeEnabled: Boolean = true,
+    classical: Boolean = false
 ): List<LibraryTab> {
-    val orderedTabs = if (isInternational && youtubeEnabled) {
+    val orderedTabs = if (classical) {
+        listOf(LibraryTab.LOCAL, LibraryTab.BILI, LibraryTab.FAVORITE, LibraryTab.YTMUSIC)
+    } else if (isInternational && youtubeEnabled) {
         listOf(
             LibraryTab.LOCAL,
             LibraryTab.FAVORITE,
@@ -328,7 +335,7 @@ fun LibraryScreen(
     val youtubeEnabled by AppContainer.settingsRepo.youtubeEnabledFlow
         .collectAsStateWithLifecycle(initialValue = YouTubeFeatureGate.isEnabled())
     val orderedTabs = remember(isInternational, youtubeEnabled) {
-        libraryTabDisplayOrder(isInternational, youtubeEnabled)
+        libraryTabDisplayOrder(isInternational, youtubeEnabled, classical = ClassicalLowPower.enabled)
     }
     val initialPage = remember(orderedTabs, initialTab) {
         orderedTabs.indexOf(initialTab.asVisibleLibraryTab()).takeIf { it >= 0 } ?: 0
@@ -582,7 +589,31 @@ private fun LibraryMainTabs(
                 .clip(LibraryPrimaryTabShape),
             shape = LibraryPrimaryTabShape
         ) {
-            PrimaryScrollableTabRow(
+            if (ClassicalLowPower.enabled) {
+                PrimaryTabRow(
+                    selectedTabIndex = selectedTabIndex,
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    tabs.forEachIndexed { index, tab ->
+                        Tab(
+                            selected = selectedTabIndex == index,
+                            onClick = { onTabSelected(index) },
+                            selectedContentColor = MaterialTheme.colorScheme.primary,
+                            unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Text(
+                                stringResource(tab.labelResId),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(vertical = 14.dp)
+                            )
+                        }
+                    }
+                }
+            } else PrimaryScrollableTabRow(
                 selectedTabIndex = selectedTabIndex,
                 edgePadding = 8.dp,
                 containerColor = Color.Transparent,
@@ -1194,6 +1225,87 @@ private fun LocalPlaylistList(
         displayedLocalArtists.chunked(localArtistColumnCount)
     }
 
+    if (showDialog) {
+        MiuixSettingsDialog(
+            onDismissRequest = {
+                showDialog = false
+                newName = ""
+                nameError = null
+            },
+            title = { Text(stringResource(R.string.playlist_create)) },
+            text = {
+                MiuixSettingsDialogContent(verticalSpacing = 12.dp) {
+                    MiuixSettingsTextField(
+                        value = newName,
+                        onValueChange = {
+                            newName = it.take(maxNameLength)
+                            if (nameError != null) nameError = null
+                        },
+                        placeholder = { Text(stringResource(R.string.playlist_enter_name)) },
+                        singleLine = true,
+                        modifier = Modifier.focusRequester(focusRequester),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { tryCreate() })
+                    )
+                    if (nameError != null) {
+                        Text(
+                            text = nameError.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                MiuixSettingsButton(
+                    onClick = { tryCreate() },
+                    enabled = newName.trim().isNotBlank()
+                ) {
+                    Text(stringResource(R.string.action_create))
+                }
+            },
+            dismissButton = {
+                MiuixSettingsTextButton(
+                    onClick = {
+                        showDialog = false
+                        newName = ""
+                        nameError = null
+                    }
+                ) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
+
+    if (showDeleteSelectedConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteSelectedConfirm = false },
+            title = { Text(stringResource(R.string.dialog_confirm_delete)) },
+            text = {
+                Text(
+                    pluralStringResource(
+                        R.plurals.library_delete_selected_confirm,
+                        selectedIds.size,
+                        selectedIds.size
+                    )
+                )
+            },
+            confirmButton = {
+                HapticTextButton(
+                    onClick = {
+                        val idsToDelete = selectedIds.toList()
+                        exitSelection()
+                        onDelete(idsToDelete)
+                    }
+                ) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                HapticTextButton(
+                    onClick = { showDeleteSelectedConfirm = false }
+                ) { Text(stringResource(R.string.action_cancel)) }
+            }
+        )
+    }
+
     LazyColumn(
         state = reorderState.listState,
         contentPadding = PaddingValues(
@@ -1214,6 +1326,7 @@ private fun LocalPlaylistList(
                 selectionMode = selectionMode,
                 searchQuery = localSearchQuery,
                 onSearchQueryChange = { localSearchQuery = it },
+                onCreatePlaylist = { showDialog = true },
                 artistSortMode = localArtistSortMode,
                 onArtistSortModeChange = { sortMode ->
                     localArtistSortMode = sortMode
@@ -1346,108 +1459,28 @@ private fun LocalPlaylistList(
                 }
             }
         }
-        if (localSearchQuery.isBlank()) {
+        if (!ClassicalLowPower.enabled && localSearchQuery.isBlank()) {
             item(key = "local_playlist_create") {
-            Card(
-                shape = cardShape,
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.Transparent
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                    .animateItem()
-                    .clip(cardShape)
-                    .clickable(enabled = !selectionMode) { showDialog = true }
-            ) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.library_create_new)) },
-                    colors = ListItemDefaults.colors(
+                Card(
+                    shape = cardShape,
+                    colors = CardDefaults.cardColors(
                         containerColor = Color.Transparent
-                    )
-                )
-            }
-
-            if (showDialog) {
-                MiuixSettingsDialog(
-                    onDismissRequest = {
-                        showDialog = false
-                        newName = ""
-                        nameError = null
-                    },
-                    title = { Text(stringResource(R.string.playlist_create)) },
-                    text = {
-                        MiuixSettingsDialogContent(verticalSpacing = 12.dp) {
-                            MiuixSettingsTextField(
-                                value = newName,
-                                onValueChange = {
-                                    newName = it.take(maxNameLength)
-                                    if (nameError != null) nameError = null
-                                },
-                                placeholder = { Text(stringResource(R.string.playlist_enter_name)) },
-                                singleLine = true,
-                                modifier = Modifier.focusRequester(focusRequester),
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { tryCreate() })
-                            )
-                            if (nameError != null) {
-                                Text(
-                                    text = nameError.orEmpty(),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        MiuixSettingsButton(
-                            onClick = { tryCreate() },
-                            enabled = newName.trim().isNotBlank()
-                        ) {
-                            Text(stringResource(R.string.action_create))
-                        }
-                    },
-                    dismissButton = {
-                        MiuixSettingsTextButton(
-                            onClick = {
-                                showDialog = false
-                                newName = ""
-                                nameError = null
-                            }
-                        ) { Text(stringResource(R.string.action_cancel)) }
-                    }
-                )
-            }
-
-            if (showDeleteSelectedConfirm) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteSelectedConfirm = false },
-                    title = { Text(stringResource(R.string.dialog_confirm_delete)) },
-                    text = {
-                        Text(
-                            pluralStringResource(
-                                R.plurals.library_delete_selected_confirm,
-                                selectedIds.size,
-                                selectedIds.size
-                            )
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .animateItem()
+                        .clip(cardShape)
+                        .clickable(enabled = !selectionMode) { showDialog = true }
+                ) {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.library_create_new)) },
+                        colors = ListItemDefaults.colors(
+                            containerColor = Color.Transparent
                         )
-                    },
-                    confirmButton = {
-                        HapticTextButton(
-                            onClick = {
-                                val idsToDelete = selectedIds.toList()
-                                exitSelection()
-                                onDelete(idsToDelete)
-                            }
-                        ) { Text(stringResource(R.string.action_delete)) }
-                    },
-                    dismissButton = {
-                        HapticTextButton(
-                            onClick = { showDeleteSelectedConfirm = false }
-                        ) { Text(stringResource(R.string.action_cancel)) }
-                    }
-                )
-            }
+                    )
+                }
+
             }
         }
 
@@ -1489,7 +1522,7 @@ private fun LocalPlaylistList(
                         },
                         supportingContent = {
                             Text(
-                                pluralStringResource(R.plurals.library_song_count, system.songs.size, system.songs.size),
+                                localPlaylistSummary(system),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         },
@@ -1593,7 +1626,7 @@ private fun LocalPlaylistList(
                         },
                         supportingContent = {
                             Text(
-                                pluralStringResource(R.plurals.library_song_count, pl.songs.size, pl.songs.size),
+                                localPlaylistSummary(pl),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         },
@@ -1775,7 +1808,7 @@ private fun LocalPlaylistList(
                         },
                         supportingContent = {
                             Text(
-                                pluralStringResource(R.plurals.library_song_count, system.songs.size, system.songs.size),
+                                localPlaylistSummary(system),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         },
@@ -1825,11 +1858,21 @@ private fun LocalPlaylistList(
 }
 
 @Composable
+private fun localPlaylistSummary(playlist: LocalPlaylist): String {
+    val count = pluralStringResource(R.plurals.library_song_count, playlist.songs.size, playlist.songs.size)
+    val durationMs = remember(playlist) { playlist.songs.sumOf { it.durationMs.coerceAtLeast(0L) } }
+    return if (ClassicalLowPower.enabled && durationMs > 0) {
+        stringResource(R.string.classical_queue_group_summary_format, count, formatTotalDuration(LocalContext.current, durationMs))
+    } else count
+}
+
+@Composable
 private fun LocalLibraryHeaderContent(
     selectedLocalCategory: Int,
     selectionMode: Boolean,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
+    onCreatePlaylist: () -> Unit,
     artistSortMode: LocalArtistSortMode,
     onArtistSortModeChange: (LocalArtistSortMode) -> Unit,
     onPlaylistSelected: () -> Unit,
@@ -1849,6 +1892,30 @@ private fun LocalLibraryHeaderContent(
                     sortMode = artistSortMode,
                     onSortModeChange = onArtistSortModeChange
                 )
+            } else if (ClassicalLowPower.enabled) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    LibraryInlineSearchField(
+                        query = searchQuery,
+                        onQueryChange = onSearchQueryChange,
+                        placeholderResId = R.string.library_local_playlist_search_hint,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Surface(
+                        onClick = onCreatePlaylist,
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.playlist_create))
+                        }
+                    }
+                }
             } else {
                 LibraryInlineSearchField(
                     query = searchQuery,
@@ -1989,22 +2056,26 @@ private fun LocalCategoryTabs(
                     selected = selectedCategory == LOCAL_CATEGORY_PLAYLIST,
                     onClick = onPlaylistSelected,
                     text = { Text(stringResource(R.string.library_favorite_tab_playlists)) },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.QueueMusic,
-                            contentDescription = null
-                        )
+                    icon = if (ClassicalLowPower.enabled) null else {
+                        {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.QueueMusic,
+                                contentDescription = null
+                            )
+                        }
                     }
                 )
                 Tab(
                     selected = selectedCategory == LOCAL_CATEGORY_ARTIST,
                     onClick = onArtistSelected,
                     text = { Text(stringResource(R.string.library_favorite_tab_artists)) },
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = null
-                        )
+                    icon = if (ClassicalLowPower.enabled) null else {
+                        {
+                            Icon(
+                                imageVector = Icons.Filled.AccountCircle,
+                                contentDescription = null
+                            )
+                        }
                     }
                 )
             }
@@ -2016,14 +2087,13 @@ private fun LocalCategoryTabs(
 private fun LibraryInlineSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
-    placeholderResId: Int
+    placeholderResId: Int,
+    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
 ) {
     OutlinedTextField(
         value = query,
         onValueChange = onQueryChange,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
+        modifier = modifier,
         placeholder = { Text(stringResource(placeholderResId)) },
         singleLine = true,
         shape = LibrarySearchFieldShape,

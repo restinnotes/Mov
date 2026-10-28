@@ -13,4 +13,10 @@
     <plurals name="settings_playback_idle_shutdown_minutes">
         <item quantity="other">%1$d 分钟</item>
     </plurals>
+    <plurals name="classical_queue_part_count">
+        <item quantity="other">%d 个分P</item>
+    </plurals>
+    <plurals name="classical_queue_work_count">
+        <item quantity="other">%d 个作品</item>
+    </plurals>
 </resources>

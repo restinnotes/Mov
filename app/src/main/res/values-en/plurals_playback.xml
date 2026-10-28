@@ -17,4 +17,12 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
+    <plurals name="classical_queue_part_count">
+        <item quantity="one">%d part</item>
+        <item quantity="other">%d parts</item>
+    </plurals>
+    <plurals name="classical_queue_work_count">
+        <item quantity="one">%d work</item>
+        <item quantity="other">%d works</item>
+    </plurals>
 </resources>

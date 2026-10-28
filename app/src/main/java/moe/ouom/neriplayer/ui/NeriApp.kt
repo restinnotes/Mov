@@ -2804,6 +2804,8 @@ private fun NeriAppContent(
                         showRecommendedCard = showHomeRecommendedCard,
                         homeUsageEntries = homeUsageSnapshot.entries,
                         homeUsageLoaded = homeUsageSnapshot.isLoaded,
+                        onOpenHistory = { navController.navigate(Destinations.Recent.route) },
+                        onOpenLibrary = { navigateToMainTab(Destinations.Library.route) },
                         offlineMode = offlineMode,
                         runtimeState = homeHostRuntimeState,
                         onSongClick = ::playSongsAndOpenNowPlaying,

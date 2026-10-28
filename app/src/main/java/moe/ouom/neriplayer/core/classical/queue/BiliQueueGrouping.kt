@@ -76,8 +76,13 @@ sealed interface BiliQueueRow {
         val bvid: String,
         val title: String,
         val count: Int,
-        val firstQueueIndex: Int
-    ) : BiliQueueRow
+        val firstQueueIndex: Int,
+        /** Sum of part durations; unknown (0) durations contribute nothing. */
+        val totalDurationMs: Long = 0L
+    ) : BiliQueueRow {
+        fun containsQueueIndex(queueIndex: Int): Boolean =
+            queueIndex >= firstQueueIndex && queueIndex < firstQueueIndex + count
+    }
 
     data class Song(
         val song: SongItem,
@@ -121,7 +126,8 @@ fun groupConsecutiveBiliRuns(songs: List<SongItem>): List<BiliQueueRow> {
             bvid = bvid,
             title = title,
             count = end - index,
-            firstQueueIndex = index
+            firstQueueIndex = index,
+            totalDurationMs = (index until end).sumOf { songs[it].durationMs.coerceAtLeast(0L) }
         )
         for (i in index until end) {
             rows += BiliQueueRow.Song(
@@ -133,6 +139,30 @@ fun groupConsecutiveBiliRuns(songs: List<SongItem>): List<BiliQueueRow> {
         index = end
     }
     return rows
+}
+
+data class BiliQueueSummary(
+    /** Group headers plus ungrouped items: one per video/standalone song. */
+    val workCount: Int,
+    val itemCount: Int,
+    val totalDurationMs: Long
+)
+
+/**
+ * Queue header stats for the classical sheet ("3 个作品 · 9 个分P · 共 …").
+ * Uses the same grouping as the list, so counts match what is rendered.
+ * Pure function, unit tested.
+ */
+fun summarizeBiliQueue(songs: List<SongItem>): BiliQueueSummary {
+    val rows = groupConsecutiveBiliRuns(songs)
+    val workCount = rows.count { row ->
+        row is BiliQueueRow.GroupHeader || (row is BiliQueueRow.Song && row.groupKey == null)
+    }
+    return BiliQueueSummary(
+        workCount = workCount,
+        itemCount = songs.size,
+        totalDurationMs = songs.sumOf { it.durationMs.coerceAtLeast(0L) }
+    )
 }
 
 /**

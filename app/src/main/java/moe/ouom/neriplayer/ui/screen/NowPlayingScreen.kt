@@ -752,6 +752,7 @@ internal fun invertNowPlayingQueueSelection(
 private fun NowPlayingQueueGroupHeader(
     title: String,
     count: Int,
+    totalDurationMs: Long,
     coverUrl: String?,
     expanded: Boolean,
     onToggle: () -> Unit,
@@ -767,7 +768,7 @@ private fun NowPlayingQueueGroupHeader(
         color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.30f)
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!coverUrl.isNullOrBlank()) {
@@ -775,28 +776,33 @@ private fun NowPlayingQueueGroupHeader(
                     model = coverUrl,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
                 )
             } else {
                 Icon(
                     imageVector = Icons.Outlined.PlayArrow,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(56.dp)
                 )
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = "$count 个分P",
+                    text = stringResource(
+                        R.string.classical_queue_group_summary_format,
+                        pluralStringResource(R.plurals.classical_queue_part_count, count, count),
+                        formatDuration(totalDurationMs)
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -804,7 +810,7 @@ private fun NowPlayingQueueGroupHeader(
             IconButton(onClick = onPlayAll) {
                 Icon(
                     imageVector = Icons.Outlined.PlayArrow,
-                    contentDescription = stringResource(R.string.playlist_queue),
+                    contentDescription = stringResource(R.string.cd_play_all),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -831,6 +837,7 @@ private fun NowPlayingQueueRow(
     offlineMode: Boolean,
     selectionMode: Boolean,
     selected: Boolean,
+    compactPart: Boolean = false,
     onPlay: () -> Unit,
     onLongPress: () -> Unit,
     onToggleSelect: () -> Unit,
@@ -845,14 +852,15 @@ private fun NowPlayingQueueRow(
     var showMoreMenu by remember { mutableStateOf(false) }
     val containerColor = when {
         selected -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.64f)
-        isCurrent -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f)
+        isCurrent -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (compactPart) 1f else 0.42f)
+        compactPart -> Color.Transparent
         else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f)
     }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 72.dp)
+            .heightIn(min = if (compactPart) 52.dp else 72.dp)
             .clip(RoundedCornerShape(20.dp))
             .combinedClickable(
                 onClick = {
@@ -868,7 +876,9 @@ private fun NowPlayingQueueRow(
         color = containerColor
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = if (compactPart) {
+                Modifier.padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)
+            } else Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (selectionMode) {
@@ -892,12 +902,13 @@ private fun NowPlayingQueueRow(
                 )
             }
             Box(
-                modifier = Modifier.width(34.dp),
+                modifier = Modifier.width(if (compactPart) 40.dp else 34.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
                 Text(
                     text = (index + 1).toString(),
-                    style = MaterialTheme.typography.labelLarge,
+                    style = if (compactPart) MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp)
+                        else MaterialTheme.typography.labelLarge,
                     color = if (isCurrent) {
                         MaterialTheme.colorScheme.primary
                     } else {
@@ -906,56 +917,74 @@ private fun NowPlayingQueueRow(
                     maxLines = 1
                 )
             }
-            if (!coverUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = offlineCachedImageRequest(
-                        context = context,
-                        data = coverUrl,
-                        sizePx = 128,
-                        allowHardware = false,
-                        crossfade = true,
-                        offlineMode = offlineMode
-                    ),
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                )
-            } else {
-                Surface(
-                    modifier = Modifier.size(52.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Outlined.MusicNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+            if (!compactPart) {
+                if (!coverUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = offlineCachedImageRequest(
+                            context = context,
+                            data = coverUrl,
+                            sizePx = 128,
+                            allowHardware = false,
+                            crossfade = true,
+                            offlineMode = offlineMode
+                        ),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                    )
+                } else {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.64f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Outlined.MusicNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
+                Spacer(Modifier.width(12.dp))
             }
-            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
                     text = song.displayName(),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = if (compactPart && !isCurrent) MaterialTheme.typography.bodyLarge
+                        else MaterialTheme.typography.titleMedium,
+                    color = if (compactPart && isCurrent) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(Modifier.height(2.dp))
+                if (!compactPart) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                            "${song.displayArtist()} · ${formatDuration(song.durationMs.coerceAtLeast(0L))}"
+                        } else song.displayArtist(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (compactPart) {
                 Text(
-                    text = song.displayArtist(),
+                    text = formatDuration(song.durationMs.coerceAtLeast(0L)),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    color = if (isCurrent) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 8.dp),
+                    maxLines = 1
                 )
             }
-            if (isCurrent && !selectionMode) {
+            if (isCurrent && !selectionMode && !compactPart) {
                 Icon(
                     imageVector = Icons.Outlined.PlayArrow,
                     contentDescription = stringResource(R.string.player_now_playing),
@@ -1603,16 +1632,28 @@ internal fun NowPlayingQueueSheet(
                         Column(Modifier.weight(1f)) {
                             Text(
                                 text = stringResource(R.string.playlist_queue),
-                                style = MaterialTheme.typography.headlineSmall,
+                                style = if (classicalQueueGrouping) MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp)
+                                    else MaterialTheme.typography.headlineSmall,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = pluralStringResource(
+                                text = if (classicalQueueGrouping) {
+                                    val summary = remember(displayedQueue) {
+                                        moe.ouom.neriplayer.core.classical.queue.summarizeBiliQueue(displayedQueue)
+                                    }
+                                    stringResource(
+                                        R.string.classical_queue_summary_format,
+                                        pluralStringResource(R.plurals.classical_queue_work_count, summary.workCount, summary.workCount),
+                                        pluralStringResource(R.plurals.classical_queue_part_count, summary.itemCount, summary.itemCount),
+                                        moe.ouom.neriplayer.core.classical.formatClassicalDuration(summary.totalDurationMs)
+                                    )
+                                } else pluralStringResource(
                                     R.plurals.nowplaying_queue_count_format,
                                     displayedQueue.size,
                                     displayedQueue.size
                                 ),
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = if (classicalQueueGrouping) MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp)
+                                    else MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
@@ -1663,12 +1704,12 @@ internal fun NowPlayingQueueSheet(
                         )
                         .bottomSheetScrollGuard(),
                     contentPadding = PaddingValues(
-                        start = 16.dp,
-                        end = 16.dp,
+                        start = if (classicalQueueGrouping) 12.dp else 16.dp,
+                        end = if (classicalQueueGrouping) 12.dp else 16.dp,
                         top = 4.dp,
                         bottom = 98.dp
                     ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(if (classicalQueueGrouping) 4.dp else 8.dp)
                 ) {
                     items(
                         items = queueDisplayRows,
@@ -1690,6 +1731,7 @@ internal fun NowPlayingQueueSheet(
                                 NowPlayingQueueGroupHeader(
                                     title = row.title,
                                     count = row.count,
+                                    totalDurationMs = row.totalDurationMs,
                                     coverUrl = firstCover,
                                     expanded = row.groupKey !in collapsedQueueGroups,
                                     onToggle = {
@@ -1740,6 +1782,7 @@ internal fun NowPlayingQueueSheet(
                                 offlineMode = offlineMode,
                                 selectionMode = selectionMode,
                                 selected = entry.key in selectedKeys,
+                                compactPart = classicalQueueGrouping && row.groupKey != null,
                                 onPlay = {
                                     PlayerManager.playFromQueue(entryPos)
                                     dismissQueue()

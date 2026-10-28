@@ -138,6 +138,8 @@ fun HomeHostScreen(
     homeUsageEntries: List<UsageEntry> = emptyList(),
     homeUsageLoaded: Boolean = true,
     offlineMode: Boolean = false,
+    onOpenHistory: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
     runtimeState: HomeHostRuntimeState = rememberHomeHostRuntimeState(),
     onSongClick: (List<SongItem>, Int) -> Unit = { _, _ -> },
     onSongClickWithSourceRoute: (List<SongItem>, Int, String?) -> Unit = { songs, index, _ ->
@@ -446,7 +448,14 @@ fun HomeHostScreen(
                                     }
                                     openRecent(entry, ::openHomeSelectedItem)
                                 },
-                                onSongClick = onSongClick
+                                onSongClick = onSongClick,
+                                onOpenHistory = onOpenHistory,
+                                onOpenLibrary = onOpenLibrary,
+                                onOpenLocalPlaylist = { playlistId ->
+                                    skipDetailCloseAnimation = false
+                                    captureHomeScrollPosition()
+                                    openHomeSelectedItem(HomeSelectedItem.Local(playlistId))
+                                }
                             )
                         }
                     } else {
