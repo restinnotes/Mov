@@ -200,4 +200,6 @@
     <string name="bili_uploader_search_empty">没有找到匹配的投稿</string>
     <string name="classical_like_song">加入我喜欢的音乐，长按收藏到歌单</string>
     <string name="classical_unlike_song">从我喜欢的音乐移除，长按收藏到歌单</string>
+    <string name="player_match_metadata">搜索匹配封面与信息</string>
+    <string name="player_edit_metadata">编辑标题与封面</string>
 </resources>

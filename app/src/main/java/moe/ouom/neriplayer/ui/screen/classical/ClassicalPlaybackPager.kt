@@ -13,7 +13,7 @@ internal fun ClassicalPlaybackPager(
     visible: Boolean,
     source: @Composable (returnToPlayer: () -> Unit) -> Unit,
     queue: @Composable (returnToPlayer: () -> Unit) -> Unit,
-    player: @Composable (openQueue: () -> Unit) -> Unit
+    player: @Composable () -> Unit
 ) {
     val pager = rememberPagerState(initialPage = 1, pageCount = { 3 })
     val scope = rememberCoroutineScope()
@@ -28,7 +28,7 @@ internal fun ClassicalPlaybackPager(
         if (page == pager.currentPage || pager.isScrollInProgress) {
             when (page) {
                 0 -> source(returnToPlayer)
-                1 -> player { scope.launch { pager.animateScrollToPage(2) } }
+                1 -> player()
                 2 -> queue(returnToPlayer)
             }
         }

@@ -35,7 +35,6 @@ import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.outlined.Timer
 import androidx.media3.common.Player
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -75,12 +74,12 @@ import moe.ouom.neriplayer.util.format.formatDuration
  * Classical 中央播放页，作品信息和队列由相邻页面承载。
  *
  * 结构：
- * - 嵌入三页容器时由容器提供顶栏
+ * - 顶部仅保留返回和更多操作
  * - 封面：居中大圆角矩形封面 (RoundedCornerShape 28dp)，无任何角标
  * - 标题栏：左侧大字标题 (加粗) + 作者 (点击进 UP 主)，右侧爱心收藏
  * - 进度条：简洁 Slider + 左右两端时间 ("00:04" / "01:45:52")，无杂乱码率文本
  * - 主控区：上一首、大号圆形边框播放/暂停按钮 (直径 76dp)、下一首
- * - 主控两侧保留随机/循环；底部分享、定时、队列（长按分P）
+ * - 主控两侧保留随机/循环；底部分享和定时；长按封面打开全部分P
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,7 +105,6 @@ fun BBPlayerPlaybackPortraitContent(
     repeatMode: Int,
     onCycleRepeatMode: () -> Unit,
     onShare: () -> Unit,
-    onOpenQueue: () -> Unit,
     onOpenParts: (() -> Unit)?,
     sleepTimerActive: Boolean,
     onOpenSleepTimer: () -> Unit,
@@ -170,7 +168,12 @@ fun BBPlayerPlaybackPortraitContent(
             modifier = Modifier
                 .size(coverSize)
                 .clip(RoundedCornerShape(28.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .then(if (onOpenParts != null) Modifier.combinedClickable(
+                    onClick = {},
+                    onLongClick = onOpenParts,
+                    onLongClickLabel = stringResource(R.string.classical_all_parts)
+                ) else Modifier),
             contentAlignment = Alignment.Center
         ) {
             if (!coverUrl.isNullOrBlank()) {
@@ -373,14 +376,7 @@ fun BBPlayerPlaybackPortraitContent(
                 Icon(Icons.Outlined.Timer, stringResource(if (sleepTimerActive) R.string.sleep_timer_running else R.string.sleep_timer_title),
                     tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Box(Modifier.size(48.dp).clip(CircleShape).combinedClickable(
-                onClick = onOpenQueue,
-                onLongClick = onOpenParts,
-                onLongClickLabel = if (onOpenParts != null) stringResource(R.string.classical_all_parts) else null
-            ), contentAlignment = Alignment.Center) {
-                Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.playlist_queue),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+
         }
         Spacer(Modifier.height(8.dp))
     }

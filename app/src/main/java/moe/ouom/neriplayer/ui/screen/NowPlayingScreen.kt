@@ -3878,7 +3878,7 @@ fun NowPlayingScreen(
                                     }
                                 }
                             },
-                            player = { openQueue ->
+                            player = {
                                 moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
                                     currentSong = currentSong,
                                     coverUrl = currentCoverUrl,
@@ -3913,7 +3913,6 @@ fun NowPlayingScreen(
                                     repeatMode = repeatMode,
                                     onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
                                     onShare = { showShare = true },
-                                    onOpenQueue = openQueue,
                                     onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
                                     sleepTimerActive = sleepTimerState.isActive,
                                     onOpenSleepTimer = { showSleepTimerDialog = true },

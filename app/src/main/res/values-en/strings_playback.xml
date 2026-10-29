@@ -200,4 +200,6 @@
     <string name="bili_uploader_search_empty">No matching videos</string>
     <string name="classical_like_song">Add to liked songs. Hold to save to a playlist</string>
     <string name="classical_unlike_song">Remove from liked songs. Hold to save to a playlist</string>
+    <string name="player_match_metadata">Search to match artwork and metadata</string>
+    <string name="player_edit_metadata">Edit title and artwork</string>
 </resources>

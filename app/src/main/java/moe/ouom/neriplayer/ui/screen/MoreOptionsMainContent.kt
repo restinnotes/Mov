@@ -180,7 +180,7 @@ private fun MetadataAndPlaybackActions(
     onShowQualitySwitch: () -> Unit
 ) {
     ListItem(
-        headlineContent = { Text(stringResource(R.string.music_get_info)) },
+        headlineContent = { Text(stringResource(R.string.player_match_metadata)) },
         leadingContent = { Icon(Icons.Outlined.Info, null) },
         modifier = Modifier.clickable(
             enabled = !isDismissing,
@@ -188,7 +188,7 @@ private fun MetadataAndPlaybackActions(
         )
     )
     ListItem(
-        headlineContent = { Text(stringResource(R.string.music_edit_info)) },
+        headlineContent = { Text(stringResource(R.string.player_edit_metadata)) },
         leadingContent = { Icon(Icons.Outlined.Edit, null) },
         modifier = Modifier.clickable(onClick = onOpenEditInfo)
     )
