@@ -64,7 +64,6 @@ import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.player.PlayerManager
-import moe.ouom.neriplayer.ui.component.playback.NowPlayingSongTitle
 import moe.ouom.neriplayer.ui.component.playback.PlaybackControlIndicator
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.data.model.displayArtist
@@ -108,7 +107,6 @@ fun BBPlayerPlaybackPortraitContent(
     onShare: () -> Unit,
     onOpenParts: (() -> Unit)?,
     sleepTimerActive: Boolean,
-    titleMarqueeEnabled: Boolean,
     onOpenSleepTimer: () -> Unit,
     embedded: Boolean = false,
     modifier: Modifier = Modifier
@@ -207,9 +205,10 @@ fun BBPlayerPlaybackPortraitContent(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                NowPlayingSongTitle(
+                Text(
                     text = currentSong?.displayName() ?: "未在播放",
-                    marqueeEnabled = titleMarqueeEnabled,
+                    softWrap = true,
+                    maxLines = Int.MAX_VALUE,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp

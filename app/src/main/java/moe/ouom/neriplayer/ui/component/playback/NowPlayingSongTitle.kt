@@ -43,16 +43,17 @@ internal fun NowPlayingSongTitle(
     marqueeEnabled: Boolean,
     style: TextStyle,
     modifier: Modifier = Modifier,
-    color: Color = Color.Unspecified
+    color: Color = Color.Unspecified,
+    wrap: Boolean = false
 ) {
-    if (!marqueeEnabled) {
+    if (wrap || !marqueeEnabled) {
         Text(
             text = text,
             style = style,
             color = color,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis,
+            maxLines = if (wrap) Int.MAX_VALUE else 1,
+            softWrap = wrap,
+            overflow = if (wrap) TextOverflow.Clip else TextOverflow.Ellipsis,
             modifier = modifier
         )
         return

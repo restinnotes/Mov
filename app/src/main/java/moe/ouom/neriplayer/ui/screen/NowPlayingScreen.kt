@@ -3428,6 +3428,7 @@ fun NowPlayingScreen(
                                 NowPlayingSongTitle(
                                     text = currentSong?.customName ?: currentSong?.name ?: "",
                                     marqueeEnabled = nowPlayingSongTitleMarqueeEnabled,
+                                    wrap = moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled,
                                     style = MaterialTheme.typography.headlineSmall,
                                     color = targetNowPlayingColorScheme.onSurface,
                                     modifier = Modifier
@@ -3938,7 +3939,6 @@ fun NowPlayingScreen(
                                     onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
                                     onShare = { showShare = true },
                                     onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
-                                    titleMarqueeEnabled = nowPlayingSongTitleMarqueeEnabled,
                                     sleepTimerActive = sleepTimerState.isActive,
                                     onOpenSleepTimer = { showSleepTimerDialog = true },
                                     modifier = Modifier.fillMaxSize()
