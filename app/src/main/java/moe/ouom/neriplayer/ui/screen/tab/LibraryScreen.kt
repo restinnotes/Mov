@@ -162,6 +162,7 @@ import moe.ouom.neriplayer.ui.screen.tab.settings.miuix.MiuixSettingsDialog
 import moe.ouom.neriplayer.ui.screen.tab.settings.miuix.MiuixSettingsDialogContent
 import moe.ouom.neriplayer.ui.screen.tab.settings.miuix.MiuixSettingsTextButton
 import moe.ouom.neriplayer.ui.screen.tab.settings.miuix.MiuixSettingsTextField
+import moe.ouom.neriplayer.ui.util.safePageIndex
 import moe.ouom.neriplayer.ui.util.currentWindowWidthDp
 import moe.ouom.neriplayer.util.format.formatPlayCount
 import moe.ouom.neriplayer.util.media.offlineCachedImageRequest
@@ -259,10 +260,12 @@ private fun rememberHotPlaylists(): List<PlaybackStatsHotPlaylist>? {
 internal fun libraryTabDisplayOrder(
     isInternational: Boolean,
     youtubeEnabled: Boolean = true,
-    classical: Boolean = false
+    classical: Boolean = false,
+    neteaseLoggedIn: Boolean = false
 ): List<LibraryTab> {
     val orderedTabs = if (classical) {
-        listOf(LibraryTab.LOCAL, LibraryTab.BILI, LibraryTab.FAVORITE, LibraryTab.YTMUSIC)
+        listOf(LibraryTab.LOCAL, LibraryTab.BILI, LibraryTab.FAVORITE, LibraryTab.YTMUSIC) +
+            if (neteaseLoggedIn) listOf(LibraryTab.NETEASE) else emptyList()
     } else if (isInternational && youtubeEnabled) {
         listOf(
             LibraryTab.LOCAL,
@@ -334,8 +337,13 @@ fun LibraryScreen(
         .collectAsStateWithLifecycle(initialValue = false)
     val youtubeEnabled by AppContainer.settingsRepo.youtubeEnabledFlow
         .collectAsStateWithLifecycle(initialValue = YouTubeFeatureGate.isEnabled())
-    val orderedTabs = remember(isInternational, youtubeEnabled) {
-        libraryTabDisplayOrder(isInternational, youtubeEnabled, classical = ClassicalLowPower.enabled)
+    val orderedTabs = remember(isInternational, youtubeEnabled, ui.neteaseLoggedIn) {
+        libraryTabDisplayOrder(
+            isInternational = isInternational,
+            youtubeEnabled = youtubeEnabled,
+            classical = ClassicalLowPower.enabled,
+            neteaseLoggedIn = ui.neteaseLoggedIn
+        )
     }
     val initialPage = remember(orderedTabs, initialTab) {
         orderedTabs.indexOf(initialTab.asVisibleLibraryTab()).takeIf { it >= 0 } ?: 0
@@ -464,7 +472,7 @@ fun LibraryScreen(
                 val currentTab = orderedTabs.getOrNull(pagerState.currentPage)
                 LibraryMainTabs(
                     tabs = orderedTabs,
-                    selectedTabIndex = pagerState.currentPage,
+                    selectedTabIndex = safePageIndex(pagerState.currentPage, orderedTabs.size),
                     refreshEnabled = currentTab.isRefreshable(),
                     onTabSelected = { index ->
                         scope.launch {
@@ -489,7 +497,7 @@ fun LibraryScreen(
                     modifier = Modifier.fillMaxSize(),
                     pageSpacing = 0.dp
                 ) { page ->
-                    when (orderedTabs[page]) {
+                    when (orderedTabs[safePageIndex(page, orderedTabs.size)]) {
                         LibraryTab.LOCAL -> LocalPlaylistList(
                             playlists = ui.localPlaylists,
                             listState = localListState,
@@ -587,9 +595,11 @@ private fun LibraryMainTabs(
             modifier = Modifier
                 .weight(1f)
                 .clip(LibraryPrimaryTabShape),
-            shape = LibraryPrimaryTabShape
+            shape = LibraryPrimaryTabShape,
+            fallbackColor = if (ClassicalLowPower.enabled) MaterialTheme.colorScheme.surfaceContainer
+                else Color.Transparent
         ) {
-            if (ClassicalLowPower.enabled) {
+            if (ClassicalLowPower.enabled && tabs.size <= 4) {
                 PrimaryTabRow(
                     selectedTabIndex = selectedTabIndex,
                     containerColor = Color.Transparent,

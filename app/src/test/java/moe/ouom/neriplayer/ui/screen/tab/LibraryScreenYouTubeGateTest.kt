@@ -23,6 +23,27 @@ class LibraryScreenYouTubeGateTest {
     }
 
     @Test
+    fun `classical shows Netease only with a signed in account`() {
+        for (international in listOf(false, true)) {
+            for (youtube in listOf(false, true)) {
+                for (signedIn in listOf(false, true)) {
+                    val tabs = libraryTabDisplayOrder(
+                        isInternational = international,
+                        youtubeEnabled = youtube,
+                        classical = true,
+                        neteaseLoggedIn = signedIn
+                    )
+                    val expected = listOf(LibraryTab.LOCAL, LibraryTab.BILI, LibraryTab.FAVORITE) +
+                        (if (youtube) listOf(LibraryTab.YTMUSIC) else emptyList()) +
+                        (if (signedIn) listOf(LibraryTab.NETEASE) else emptyList())
+                    assertEquals(expected, tabs)
+                    assertFalse(tabs.contains(LibraryTab.QQMUSIC))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `library tabs exclude YouTube when disabled`() {
         val tabs = libraryTabDisplayOrder(
             isInternational = true,

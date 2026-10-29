@@ -59,6 +59,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -755,6 +756,7 @@ private fun NowPlayingQueueGroupHeader(
     count: Int,
     totalDurationMs: Long,
     coverUrl: String?,
+    isCurrent: Boolean,
     expanded: Boolean,
     onToggle: () -> Unit,
     onPlayAll: () -> Unit,
@@ -796,8 +798,11 @@ private fun NowPlayingQueueGroupHeader(
                     text = title,
                     style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp),
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().then(
+                        if (isCurrent) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier
+                    )
                 )
                 Text(
                     text = stringResource(
@@ -846,6 +851,7 @@ private fun NowPlayingQueueRow(
     selectionMode: Boolean,
     selected: Boolean,
     compactPart: Boolean = false,
+    showPartArtist: Boolean = false,
     onPlay: () -> Unit,
     onLongPress: () -> Unit,
     onToggleSelect: () -> Unit,
@@ -967,12 +973,17 @@ private fun NowPlayingQueueRow(
                     color = if (compactPart && isCurrent) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth().then(
+                        if (isCurrent && !selectionMode && moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                            Modifier.basicMarquee(iterations = Int.MAX_VALUE)
+                        } else Modifier
+                    )
                 )
-                if (!compactPart) {
+                if (!compactPart || showPartArtist) {
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        text = if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+                        text = if (!compactPart && moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
                             "${song.displayArtist()} · ${formatDuration(song.durationMs.coerceAtLeast(0L))}"
                         } else song.displayArtist(),
                         style = MaterialTheme.typography.bodySmall,
@@ -1388,6 +1399,10 @@ internal fun NowPlayingQueueSheet(
                 }
             }
         }
+    val queueGroupHeaders = remember(queueDisplayRows) {
+        queueDisplayRows.filterIsInstance<moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.GroupHeader>()
+            .associateBy { it.groupKey }
+    }
     val queueRowKey: (moe.ouom.neriplayer.core.classical.queue.BiliQueueRow) -> String = { row ->
         when (row) {
             is moe.ouom.neriplayer.core.classical.queue.BiliQueueRow.GroupHeader ->
@@ -1739,6 +1754,9 @@ internal fun NowPlayingQueueSheet(
                                     count = row.count,
                                     totalDurationMs = row.totalDurationMs,
                                     coverUrl = firstCover,
+                                    isCurrent = row.containsQueueIndex(
+                                        queueEntriesSnapshot.indexOfFirst { it.key == currentEntryKey }
+                                    ) && !selectionMode,
                                     onOpenParts = {
                                         queueEntriesSnapshot.getOrNull(row.firstQueueIndex)?.song?.let {
                                             onDismissRequest()
@@ -1795,6 +1813,12 @@ internal fun NowPlayingQueueSheet(
                                 selectionMode = selectionMode,
                                 selected = entry.key in selectedKeys,
                                 compactPart = classicalQueueGrouping && row.groupKey != null,
+                                showPartArtist = row.groupKey?.let { key ->
+                                    queueGroupHeaders[key]?.firstQueueIndex?.let { firstIndex ->
+                                        queueEntriesSnapshot.getOrNull(firstIndex)?.song?.displayArtist()
+                                            ?.let { it != entry.song.displayArtist() }
+                                    }
+                                } == true,
                                 onPlay = {
                                     PlayerManager.playFromQueue(entryPos)
                                     if (!embedded) dismissQueue()
@@ -3914,6 +3938,7 @@ fun NowPlayingScreen(
                                     onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
                                     onShare = { showShare = true },
                                     onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
+                                    titleMarqueeEnabled = nowPlayingSongTitleMarqueeEnabled,
                                     sleepTimerActive = sleepTimerState.isActive,
                                     onOpenSleepTimer = { showSleepTimerDialog = true },
                                     modifier = Modifier.fillMaxSize()

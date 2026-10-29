@@ -61,6 +61,7 @@ data class LibraryUiState(
     val neteasePlaylists: List<PlaylistSummary> = emptyList(),
     val neteaseAlbums: List<AlbumSummary> = emptyList(),
     val neteaseError: String? = null,
+    val neteaseLoggedIn: Boolean = false,
     val youtubeMusicPlaylists: List<YouTubeMusicPlaylist> = emptyList(),
     val youtubeMusicError: String? = null,
     val biliPlaylists: List<BiliPlaylist> = emptyList(),
@@ -101,6 +102,9 @@ class LibraryViewModel(application: Application) : AndroidViewModel(application)
         // 网易云 歌单
         viewModelScope.launch {
             neteaseCookieRepo.cookieFlow.collect { cookies ->
+                _uiState.value = _uiState.value.copy(
+                    neteaseLoggedIn = !cookies["MUSIC_U"].isNullOrBlank()
+                )
                 val mutable = cookies.toMutableMap()
                 mutable.putIfAbsent("os", "pc")
                 if (!cookies["MUSIC_U"].isNullOrBlank()) {

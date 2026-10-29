@@ -64,6 +64,7 @@ import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.player.PlayerManager
+import moe.ouom.neriplayer.ui.component.playback.NowPlayingSongTitle
 import moe.ouom.neriplayer.ui.component.playback.PlaybackControlIndicator
 import moe.ouom.neriplayer.data.model.SongItem
 import moe.ouom.neriplayer.data.model.displayArtist
@@ -79,7 +80,7 @@ import moe.ouom.neriplayer.util.format.formatDuration
  * - 标题栏：左侧大字标题 (加粗) + 作者 (点击进 UP 主)，右侧爱心收藏
  * - 进度条：简洁 Slider + 左右两端时间 ("00:04" / "01:45:52")，无杂乱码率文本
  * - 主控区：上一首、大号圆形边框播放/暂停按钮 (直径 76dp)、下一首
- * - 主控两侧保留随机/循环；底部分享和定时；长按封面打开全部分P
+ * - 底部依次为随机、循环、定时、分享；长按封面打开全部分P
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,6 +108,7 @@ fun BBPlayerPlaybackPortraitContent(
     onShare: () -> Unit,
     onOpenParts: (() -> Unit)?,
     sleepTimerActive: Boolean,
+    titleMarqueeEnabled: Boolean,
     onOpenSleepTimer: () -> Unit,
     embedded: Boolean = false,
     modifier: Modifier = Modifier
@@ -205,15 +207,15 @@ fun BBPlayerPlaybackPortraitContent(
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                Text(
+                NowPlayingSongTitle(
                     text = currentSong?.displayName() ?: "未在播放",
+                    marqueeEnabled = titleMarqueeEnabled,
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontWeight = FontWeight.Bold,
                         fontSize = 20.sp
                     ),
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -299,10 +301,6 @@ fun BBPlayerPlaybackPortraitContent(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onToggleShuffle) {
-                Icon(Icons.Outlined.Shuffle, stringResource(R.string.player_shuffle),
-                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-            }
             IconButton(
                 onClick = onPrev,
                 modifier = Modifier.size(48.dp)
@@ -354,6 +352,15 @@ fun BBPlayerPlaybackPortraitContent(
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onToggleShuffle) {
+                Icon(Icons.Outlined.Shuffle, stringResource(R.string.player_shuffle),
+                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             IconButton(onClick = onCycleRepeatMode) {
                 Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Outlined.Repeat,
                     stringResource(when (repeatMode) {
@@ -363,20 +370,14 @@ fun BBPlayerPlaybackPortraitContent(
                     }), tint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary
                         else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        }
-
-        Spacer(Modifier.height(20.dp))
-        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onShare) {
-                Icon(Icons.Outlined.Share, stringResource(R.string.action_share),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
             IconButton(onClick = onOpenSleepTimer) {
                 Icon(Icons.Outlined.Timer, stringResource(if (sleepTimerActive) R.string.sleep_timer_running else R.string.sleep_timer_title),
                     tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
+            IconButton(onClick = onShare) {
+                Icon(Icons.Outlined.Share, stringResource(R.string.action_share),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Spacer(Modifier.height(8.dp))
     }
