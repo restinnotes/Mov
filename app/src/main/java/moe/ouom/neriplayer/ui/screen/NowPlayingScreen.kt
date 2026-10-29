@@ -159,7 +159,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -2246,6 +2245,7 @@ fun NowPlayingScreen(
     var biliPartsSong by remember { mutableStateOf<SongItem?>(null) }
     // Classical 评论区页面（BBPlayer 风格）：由播放器次控栏评论图标进入。
     var showCommentsScreen by remember { mutableStateOf(false) }
+    var sourceCommentsSelected by remember { mutableStateOf(false) }
     // Bilibili 来源预加载：切歌即在后台拉简介 + 第一页评论，不阻塞播放。
     val sourceSongKey = currentSong?.stableKey()
     LaunchedEffect(sourceSongKey) {
@@ -3858,6 +3858,8 @@ fun NowPlayingScreen(
                             source = { returnToPlayer ->
                                 moe.ouom.neriplayer.ui.screen.classical.ClassicalSourcePane(
                                     viewModel = sourceViewModel,
+                                    selectedTab = if (sourceCommentsSelected) 1 else 0,
+                                    onSelectedTabChange = { sourceCommentsSelected = it == 1 },
                                     song = currentSong,
                                     queue = displayedQueue,
                                     snackbarHostState = snackbarHostState,
@@ -3868,36 +3870,6 @@ fun NowPlayingScreen(
                             },
                             queue = { returnToPlayer ->
                                 Column(Modifier.fillMaxSize()) {
-                                    androidx.compose.foundation.layout.FlowRow(
-                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        androidx.compose.material3.FilterChip(
-                                            selected = shuffleEnabled,
-                                            onClick = { PlayerManager.setShuffle(!shuffleEnabled) },
-                                            label = { Text(stringResource(R.string.player_shuffle)) }
-                                        )
-                                        androidx.compose.material3.FilterChip(
-                                            selected = repeatMode != Player.REPEAT_MODE_OFF,
-                                            onClick = { PlayerManager.cycleRepeatMode() },
-                                            label = { Text(stringResource(when (repeatMode) {
-                                                Player.REPEAT_MODE_ONE -> R.string.classical_repeat_one
-                                                Player.REPEAT_MODE_ALL -> R.string.classical_repeat_all
-                                                else -> R.string.classical_repeat_off
-                                            })) }
-                                        )
-                                        androidx.compose.material3.FilterChip(
-                                            selected = sleepTimerState.isActive,
-                                            onClick = { showSleepTimerDialog = true },
-                                            label = { Text(stringResource(if (sleepTimerState.isActive)
-                                                R.string.sleep_timer_running else R.string.sleep_timer_title)) }
-                                        )
-                                        if (currentSong?.biliBvidOrNull() != null) {
-                                            TextButton(onClick = { biliPartsSong = currentSong }) {
-                                                Text(stringResource(R.string.classical_all_parts))
-                                            }
-                                        }
-                                    }
                                     Box(Modifier.weight(1f)) {
                                         NowPlayingQueueSheet(
                                             displayedQueueItems = displayedQueueItems,
@@ -3912,7 +3884,7 @@ fun NowPlayingScreen(
                                     }
                                 }
                             },
-                            player = {
+                            player = { openSource, openQueue ->
                                 moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
                                     currentSong = currentSong,
                                     coverUrl = currentCoverUrl,
@@ -3942,6 +3914,18 @@ fun NowPlayingScreen(
                                     onOpenMoreOptions = { showMoreOptions = true },
                                     onNavigateUp = onNavigateUp,
                                     onOpenArtist = openCurrentArtist,
+                                    shuffleEnabled = shuffleEnabled,
+                                    onToggleShuffle = { PlayerManager.setShuffle(!shuffleEnabled) },
+                                    repeatMode = repeatMode,
+                                    onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
+                                    onOpenSource = if (currentSong?.biliBvidOrNull() != null) ({
+                                        sourceCommentsSelected = true
+                                        openSource()
+                                    }) else null,
+                                    onOpenQueue = openQueue,
+                                    onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
+                                    sleepTimerActive = sleepTimerState.isActive,
+                                    onOpenSleepTimer = { showSleepTimerDialog = true },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             }

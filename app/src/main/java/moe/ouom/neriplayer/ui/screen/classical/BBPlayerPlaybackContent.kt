@@ -31,6 +31,14 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Shuffle
+import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.filled.RepeatOne
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.outlined.LibraryMusic
+import androidx.compose.material.icons.outlined.Timer
+import androidx.media3.common.Player
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -73,7 +81,7 @@ import moe.ouom.neriplayer.util.format.formatDuration
  * - 标题栏：左侧大字标题 (加粗) + 作者 (点击进 UP 主)，右侧爱心收藏
  * - 进度条：简洁 Slider + 左右两端时间 ("00:04" / "01:45:52")，无杂乱码率文本
  * - 主控区：上一首、大号圆形边框播放/暂停按钮 (直径 76dp)、下一首
- * - 次级播放工具和分P位于右侧队列页
+ * - 主控两侧保留随机/循环；底部保留评论、分P、定时和队列快捷入口
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -94,13 +102,22 @@ fun BBPlayerPlaybackPortraitContent(
     onOpenMoreOptions: () -> Unit,
     onNavigateUp: () -> Unit,
     onOpenArtist: () -> Unit,
+    shuffleEnabled: Boolean,
+    onToggleShuffle: () -> Unit,
+    repeatMode: Int,
+    onCycleRepeatMode: () -> Unit,
+    onOpenSource: (() -> Unit)?,
+    onOpenQueue: () -> Unit,
+    onOpenParts: (() -> Unit)?,
+    sleepTimerActive: Boolean,
+    onOpenSleepTimer: () -> Unit,
     embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp.dp
-    val coverSize = minOf((screenWidthDp - 64.dp).value, configuration.screenHeightDp * 0.40f)
-        .coerceIn(160f, 340f).dp
+    val coverSize = minOf((screenWidthDp - 64.dp).value, configuration.screenHeightDp * 0.35f)
+        .coerceIn(160f, 320f).dp
 
     val playbackPositionMs by PlayerManager.playbackPositionFlow.collectAsStateWithLifecycle()
     var draggingProgressFraction by remember { mutableStateOf<Float?>(null) }
@@ -288,10 +305,14 @@ fun BBPlayerPlaybackPortraitContent(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp),
+                .padding(horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            IconButton(onClick = onToggleShuffle) {
+                Icon(Icons.Outlined.Shuffle, stringResource(R.string.player_shuffle),
+                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             IconButton(
                 onClick = onPrev,
                 modifier = Modifier.size(48.dp)
@@ -343,14 +364,41 @@ fun BBPlayerPlaybackPortraitContent(
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
+            IconButton(onClick = onCycleRepeatMode) {
+                Icon(if (repeatMode == Player.REPEAT_MODE_ONE) Icons.Filled.RepeatOne else Icons.Outlined.Repeat,
+                    stringResource(when (repeatMode) {
+                        Player.REPEAT_MODE_ONE -> R.string.classical_repeat_one
+                        Player.REPEAT_MODE_ALL -> R.string.classical_repeat_all
+                        else -> R.string.classical_repeat_off
+                    }), tint = if (repeatMode != Player.REPEAT_MODE_OFF) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
 
         Spacer(Modifier.height(20.dp))
-        Text(
-            text = stringResource(R.string.classical_player_swipe_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+            onOpenSource?.let { open ->
+                IconButton(onClick = open) {
+                    Icon(Icons.Outlined.ChatBubbleOutline, stringResource(R.string.classical_source_comments),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            onOpenParts?.let { open ->
+                IconButton(onClick = open) {
+                    Icon(Icons.Outlined.LibraryMusic, stringResource(R.string.classical_all_parts),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            IconButton(onClick = onOpenSleepTimer) {
+                Icon(Icons.Outlined.Timer, stringResource(if (sleepTimerActive) R.string.sleep_timer_running else R.string.sleep_timer_title),
+                    tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = onOpenQueue) {
+                Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.playlist_queue),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Spacer(Modifier.height(8.dp))
     }
 }

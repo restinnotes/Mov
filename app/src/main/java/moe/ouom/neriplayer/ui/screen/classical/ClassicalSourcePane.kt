@@ -3,7 +3,6 @@ package moe.ouom.neriplayer.ui.screen.classical
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -24,17 +23,24 @@ internal fun ClassicalSourcePane(
     snackbarHostState: SnackbarHostState,
     onDetails: (SongItem) -> Unit,
     onSeekTo: (Long) -> Unit,
-    onReturnToPlayer: () -> Unit
+    onReturnToPlayer: () -> Unit,
+    selectedTab: Int,
+    onSelectedTabChange: (Int) -> Unit
 ) {
-    var selected by rememberSaveable { mutableIntStateOf(0) }
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
-        SecondaryTabRow(selectedTabIndex = selected) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(R.string.classical_source_info, R.string.classical_source_comments).forEachIndexed { index, title ->
-                Tab(selected == index, onClick = { selected = index }, text = { Text(stringResource(title)) })
+                TextButton(onClick = { onSelectedTabChange(index) }, colors = ButtonDefaults.textButtonColors(
+                    containerColor = if (selectedTab == index) MaterialTheme.colorScheme.surfaceContainerHigh
+                        else androidx.compose.ui.graphics.Color.Transparent,
+                    contentColor = if (selectedTab == index) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                )) { Text(stringResource(title)) }
             }
         }
-        if (selected == 1) {
+        if (selectedTab == 1) {
             ClassicalCommentsScreen(viewModel, onSeekTo, onReturnToPlayer, embedded = true, modifier = Modifier.weight(1f))
         } else {
             SourceIntroContent(state.intro, modifier = Modifier.weight(1f))

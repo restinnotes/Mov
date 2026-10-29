@@ -122,25 +122,25 @@ fun ClassicalCommentsScreen(
     ) {
         // BBPlayer elevated Appbar
         Surface(
-            tonalElevation = 2.dp,
-            shadowElevation = 2.dp,
+            tonalElevation = if (embedded) 0.dp else 2.dp,
+            shadowElevation = if (embedded) 0.dp else 2.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    .height(if (embedded) 44.dp else 56.dp)
                     .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                if (!embedded) IconButton(onClick = onBack) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "返回",
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                Text(
+                if (!embedded) Text(
                     text = "评论区",
                     style = MaterialTheme.typography.titleLarge.copy(
                         fontSize = 18.sp,
@@ -150,8 +150,8 @@ fun ClassicalCommentsScreen(
                     modifier = Modifier.weight(1f)
                 )
                 Row(
-                    modifier = Modifier.padding(end = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.fillMaxWidth().padding(end = 12.dp),
+                    horizontalArrangement = if (embedded) Arrangement.End else Arrangement.spacedBy(6.dp)
                 ) {
                     FilterChip(
                         selected = state.commentSort == ClassicalSourceViewModel.CommentSort.FEATURED,
