@@ -5,7 +5,12 @@ import java.util.Locale
 import java.util.TimeZone
 
 object Common {
-    fun getBuildVersionCode(): Int {
+    fun getBuildVersionCode(project: Project): Int {
+        project.findProperty("buildVersionCode")
+            ?.toString()
+            ?.toIntOrNull()
+            ?.takeIf { it > 0 }
+            ?.let { return it }
         val appVerCode: Int by lazy {
             val versionCode = SimpleDateFormat("yyMMddHH", Locale.ENGLISH).format(Date())
             versionCode.toInt()

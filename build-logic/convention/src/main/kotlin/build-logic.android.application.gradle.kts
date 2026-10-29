@@ -6,7 +6,7 @@ plugins {
 
 extensions.findByType(ApplicationExtension::class)?.run {
     defaultConfig {
-        versionCode = Common.getBuildVersionCode()
+        versionCode = Common.getBuildVersionCode(project)
         versionName = Common.getBuildVersionName(project)
     }
 
