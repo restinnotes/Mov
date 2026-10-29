@@ -124,6 +124,13 @@ internal fun MoreOptionsMainContent(
             onOpenPlaybackSound = onOpenPlaybackSound,
             onShowQualitySwitch = onShowQualitySwitch
         )
+        if (PlayerManager.isBiliTrack(originalSong) && !isLocalSong) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.classical_song_details)) },
+                leadingContent = { Icon(Icons.Outlined.Info, null) },
+                modifier = Modifier.clickable(onClick = onShowSongDetails)
+            )
+        }
         if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled || !isLocalSong) DownloadOrDetailsAction(
             viewModel = viewModel,
             song = originalSong,
@@ -389,49 +396,54 @@ internal fun ShareSongAction(
     song: SongItem,
     queue: List<SongItem>,
     snackbarHostState: SnackbarHostState,
-    onDismissSheet: (() -> Unit) -> Unit
+    onDismissSheet: (() -> Unit) -> Unit,
+    launchImmediately: Boolean = false
 ) {
     val context = LocalContext.current
     val composeResources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
-    ListItem(
+    val share: () -> Unit = share@{
+        if (song.isLocalSong()) {
+            coroutineScope.launch {
+                val shared = runCatching {
+                    LocalMediaSupport.shareSongFile(context, song)
+                }.getOrDefault(false)
+                if (shared) {
+                    onDismissSheet {}
+                } else {
+                    onDismissSheet {}
+                    snackbarHostState.showNeriSnackbar(
+                        composeResources.getString(R.string.local_song_share_failed)
+                    )
+                }
+            }
+            return@share
+        }
+
+        val shareUrl = buildRemoteSongShareUrl(song, queue)
+        val shareText = if (shareUrl.isNullOrBlank()) {
+            "${song.displayName()} - ${song.displayArtist()}"
+        } else {
+            composeResources.getString(
+                R.string.nowplaying_share_song,
+                song.displayName(),
+                song.displayArtist(),
+                shareUrl,
+            )
+        }
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
+            putExtra(Intent.EXTRA_TEXT, shareText)
+            type = "text/plain"
+        }
+        val shareIntent = Intent.createChooser(sendIntent, null)
+        onDismissSheet { context.startActivity(shareIntent) }
+    }
+    if (launchImmediately) {
+        LaunchedEffect(song) { share() }
+    } else ListItem(
         headlineContent = { Text(stringResource(R.string.action_share)) },
         leadingContent = { Icon(Icons.Outlined.Share, null) },
-        modifier = Modifier.clickable {
-            if (song.isLocalSong()) {
-                coroutineScope.launch {
-                    val shared = runCatching {
-                        LocalMediaSupport.shareSongFile(context, song)
-                    }.getOrDefault(false)
-                    if (shared) {
-                        onDismissSheet {}
-                    } else {
-                        snackbarHostState.showNeriSnackbar(
-                            composeResources.getString(R.string.local_song_share_failed)
-                        )
-                    }
-                }
-                return@clickable
-            }
-
-            val shareUrl = buildRemoteSongShareUrl(song, queue)
-            val shareText = if (shareUrl.isNullOrBlank()) {
-                "${song.displayName()} - ${song.displayArtist()}"
-            } else {
-                composeResources.getString(
-                    R.string.nowplaying_share_song,
-                    song.displayName(),
-                    song.displayArtist(),
-                    shareUrl,
-                )
-            }
-            val sendIntent = Intent(Intent.ACTION_SEND).apply {
-                putExtra(Intent.EXTRA_TEXT, shareText)
-                type = "text/plain"
-            }
-            val shareIntent = Intent.createChooser(sendIntent, null)
-            onDismissSheet { context.startActivity(shareIntent) }
-        }
+        modifier = Modifier.clickable(onClick = share)
     )
 }
 

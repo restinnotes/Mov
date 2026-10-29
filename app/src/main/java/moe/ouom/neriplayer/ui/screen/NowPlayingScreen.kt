@@ -1755,7 +1755,7 @@ internal fun NowPlayingQueueSheet(
                                     },
                                     onPlayAll = {
                                         PlayerManager.playFromQueue(row.firstQueueIndex)
-                                        dismissQueue()
+                                        if (!embedded) dismissQueue()
                                     }
                                 )
                             }
@@ -1797,7 +1797,7 @@ internal fun NowPlayingQueueSheet(
                                 compactPart = classicalQueueGrouping && row.groupKey != null,
                                 onPlay = {
                                     PlayerManager.playFromQueue(entryPos)
-                                    dismissQueue()
+                                    if (!embedded) dismissQueue()
                                 },
                                 onLongPress = {
                                     selectionMode = true
@@ -2101,6 +2101,7 @@ fun NowPlayingScreen(
     visualCoverUrl: String? = null,
     playbackSongKey: String? = null,
     sourceViewModel: ClassicalSourceViewModel = viewModel(),
+    playerVisible: Boolean = true,
 ) {
     val coverLyricFontScale = lyricFontScales.coverLyric
     val coverTranslationFontScale = lyricFontScales.coverTranslation
@@ -2238,6 +2239,7 @@ fun NowPlayingScreen(
     val displayedQueue = remember(displayedQueueItems) { displayedQueueItems.map { it.song } }
     val currentIndexInDisplay = queueDisplayState.currentDisplayIndex
 
+    var showShare by remember { mutableStateOf(false) }
     var showAddSheet by remember { mutableStateOf(false) }
     var collectionSong by remember { mutableStateOf<SongItem?>(null) }
     val collectionRepo = remember(context) { LocalPlaylistRepository.getInstance(context) }
@@ -2245,7 +2247,6 @@ fun NowPlayingScreen(
     var biliPartsSong by remember { mutableStateOf<SongItem?>(null) }
     // Classical 评论区页面（BBPlayer 风格）：由播放器次控栏评论图标进入。
     var showCommentsScreen by remember { mutableStateOf(false) }
-    var sourceCommentsSelected by remember { mutableStateOf(false) }
     // Bilibili 来源预加载：切歌即在后台拉简介 + 第一页评论，不阻塞播放。
     val sourceSongKey = currentSong?.stableKey()
     LaunchedEffect(sourceSongKey) {
@@ -3853,17 +3854,10 @@ fun NowPlayingScreen(
                 } else {
                     if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled && !isLandscape) {
                         moe.ouom.neriplayer.ui.screen.classical.ClassicalPlaybackPager(
-                            onNavigateUp = onNavigateUp,
-                            onOpenTools = { showMoreOptions = true },
+                            visible = playerVisible,
                             source = { returnToPlayer ->
                                 moe.ouom.neriplayer.ui.screen.classical.ClassicalSourcePane(
                                     viewModel = sourceViewModel,
-                                    selectedTab = if (sourceCommentsSelected) 1 else 0,
-                                    onSelectedTabChange = { sourceCommentsSelected = it == 1 },
-                                    song = currentSong,
-                                    queue = displayedQueue,
-                                    snackbarHostState = snackbarHostState,
-                                    onDetails = { detailSong = it },
                                     onSeekTo = { PlayerManager.seekTo(it); returnToPlayer() },
                                     onReturnToPlayer = returnToPlayer
                                 )
@@ -3884,7 +3878,7 @@ fun NowPlayingScreen(
                                     }
                                 }
                             },
-                            player = { openSource, openQueue ->
+                            player = { openQueue ->
                                 moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
                                     currentSong = currentSong,
                                     coverUrl = currentCoverUrl,
@@ -3918,10 +3912,7 @@ fun NowPlayingScreen(
                                     onToggleShuffle = { PlayerManager.setShuffle(!shuffleEnabled) },
                                     repeatMode = repeatMode,
                                     onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
-                                    onOpenSource = if (currentSong?.biliBvidOrNull() != null) ({
-                                        sourceCommentsSelected = true
-                                        openSource()
-                                    }) else null,
+                                    onShare = { showShare = true },
                                     onOpenQueue = openQueue,
                                     onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
                                     sleepTimerActive = sleepTimerState.isActive,
@@ -3938,6 +3929,11 @@ fun NowPlayingScreen(
                         )
                     }
                 }
+            }
+
+            if (showShare && currentSong != null) {
+                ShareSongAction(currentSong!!, displayedQueue, snackbarHostState,
+                    onDismissSheet = { after -> showShare = false; after() }, launchImmediately = true)
             }
 
             // 更多选项弹窗（根层级挂载，Classical 竖屏与通用布局均可正常呼出）
@@ -4121,7 +4117,9 @@ fun NowPlayingScreen(
             }
 
             detailSong?.let { song ->
-                LocalSongDetailsDialog(
+                if (song.biliBvidOrNull() != null && !song.isLocalSong()) {
+                    moe.ouom.neriplayer.ui.screen.classical.BiliTrackDetailsDialog(song, sourceViewModel) { detailSong = null }
+                } else LocalSongDetailsDialog(
                     song = song,
                     onDismiss = { detailSong = null },
                     onShowMessage = { message ->

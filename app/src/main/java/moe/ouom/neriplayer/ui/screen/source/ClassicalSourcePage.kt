@@ -121,7 +121,7 @@ fun ClassicalCommentsScreen(
                 .windowInsetsPadding(WindowInsets.navigationBars))
     ) {
         // BBPlayer elevated Appbar
-        Surface(
+        if (!embedded) Surface(
             tonalElevation = if (embedded) 0.dp else 2.dp,
             shadowElevation = if (embedded) 0.dp else 2.dp,
             modifier = Modifier.fillMaxWidth()
@@ -417,33 +417,6 @@ private fun SourceCommentsContent(
         }
         return
     }
-    if (comments.loadState == ClassicalSourceViewModel.CommentsLoadState.INITIAL_LOADING &&
-        comments.items.isEmpty()
-    ) {
-        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
-        }
-        return
-    }
-    if (comments.loadState == ClassicalSourceViewModel.CommentsLoadState.ERROR &&
-        comments.items.isEmpty()
-    ) {
-        Box(
-            modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "评论加载失败",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error
-                )
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = onRetry) { Text("重试") }
-            }
-        }
-        return
-    }
     val nowMs = remember { System.currentTimeMillis() }
     var viewerUrl by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState()
@@ -454,7 +427,7 @@ private fun SourceCommentsContent(
             .map { it ?: 0 }
             .distinctUntilChanged()
             .collect { lastVisible ->
-                if (lastVisible >= comments.items.size - 3 && comments.items.isNotEmpty()) {
+                if (lastVisible >= listState.layoutInfo.totalItemsCount - 4 && comments.items.isNotEmpty()) {
                     onLoadMore()
                 }
             }
@@ -479,14 +452,25 @@ private fun SourceCommentsContent(
             }
         }
     }
-    // 注意：精选/最新 切换已在顶部 Appbar 右侧提供，此处不再重复渲染第二行 Chip。
+    // 简介、评论排序和评论共用一个滚动列表。
     LazyColumn(
         state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
     ) {
         val introObj = (state.intro as? ClassicalSourceViewModel.IntroState.Ready)?.intro
-        if (introObj != null && introObj.desc.isNotBlank()) {
+        if (state.intro == ClassicalSourceViewModel.IntroState.Loading) {
+            item(key = "intro-loading") {
+                Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            }
+        } else if (state.intro == ClassicalSourceViewModel.IntroState.Error) {
+            item(key = "intro-error") {
+                Text("简介加载失败", modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (introObj != null) {
             item(key = "intro-as-comment") {
                 Column {
                     IntroCommentRow(
@@ -502,6 +486,19 @@ private fun SourceCommentsContent(
             }
         }
 
+        item(key = "comment-sort") {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("评论", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onSortChange(ClassicalSourceViewModel.CommentSort.FEATURED) }) {
+                    Text("精选", color = if (state.commentSort == ClassicalSourceViewModel.CommentSort.FEATURED)
+                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { onSortChange(ClassicalSourceViewModel.CommentSort.LATEST) }) {
+                    Text("最新", color = if (state.commentSort == ClassicalSourceViewModel.CommentSort.LATEST)
+                        MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
         items(
             items = comments.items,
             key = { it.rpid }
@@ -525,6 +522,7 @@ private fun SourceCommentsContent(
         }
         item(key = "comments-footer") {
                 when (comments.loadState) {
+                    ClassicalSourceViewModel.CommentsLoadState.INITIAL_LOADING,
                     ClassicalSourceViewModel.CommentsLoadState.LOADING_MORE -> {
                         Box(
                             Modifier
@@ -645,7 +643,9 @@ private fun IntroCommentRow(
                         )
                     }
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(8.dp))
+                Text(intro.title, style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
                 RichCommentText(
                     message = intro.desc,
                     emotes = emptyMap(),

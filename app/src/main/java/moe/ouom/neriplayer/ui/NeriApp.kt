@@ -4594,6 +4594,7 @@ private fun NeriAppContent(
                             CompositionLocalProvider(LocalMiniPlayerHeight provides 0.dp) {
                                 val currentSourceRoute = currentPlaybackSourceRoute
                                 NowPlayingScreen(
+                                    playerVisible = showNowPlaying,
                                     onNavigateUp = { showNowPlaying = false },
                                     onOpenCurrentPlaybackSource = currentSourceRoute?.let { route ->
                                         {

@@ -34,9 +34,8 @@ import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
-import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.Timer
 import androidx.media3.common.Player
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,7 +80,7 @@ import moe.ouom.neriplayer.util.format.formatDuration
  * - 标题栏：左侧大字标题 (加粗) + 作者 (点击进 UP 主)，右侧爱心收藏
  * - 进度条：简洁 Slider + 左右两端时间 ("00:04" / "01:45:52")，无杂乱码率文本
  * - 主控区：上一首、大号圆形边框播放/暂停按钮 (直径 76dp)、下一首
- * - 主控两侧保留随机/循环；底部保留评论、分P、定时和队列快捷入口
+ * - 主控两侧保留随机/循环；底部分享、定时、队列（长按分P）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -106,7 +105,7 @@ fun BBPlayerPlaybackPortraitContent(
     onToggleShuffle: () -> Unit,
     repeatMode: Int,
     onCycleRepeatMode: () -> Unit,
-    onOpenSource: (() -> Unit)?,
+    onShare: () -> Unit,
     onOpenQueue: () -> Unit,
     onOpenParts: (() -> Unit)?,
     sleepTimerActive: Boolean,
@@ -139,10 +138,10 @@ fun BBPlayerPlaybackPortraitContent(
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         // 1. 顶栏：v (左) + 正在播放 (中) + ⋮ (右)
-        if (!embedded) Row(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .height(36.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onNavigateUp, modifier = Modifier.size(44.dp)) {
@@ -153,19 +152,7 @@ fun BBPlayerPlaybackPortraitContent(
                     tint = MaterialTheme.colorScheme.onSurface
                 )
             }
-            Text(
-                text = stringResource(
-                    if (isPlaybackWaiting && !isAudioRouteMuted) R.string.player_waiting
-                    else R.string.player_now_playing
-                ),
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 17.sp
-                ),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
+            Spacer(Modifier.weight(1f))
             IconButton(onClick = onOpenMoreOptions, modifier = Modifier.size(44.dp)) {
                 Icon(
                     imageVector = Icons.Filled.MoreVert,
@@ -378,23 +365,19 @@ fun BBPlayerPlaybackPortraitContent(
         Spacer(Modifier.height(20.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp),
             horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            onOpenSource?.let { open ->
-                IconButton(onClick = open) {
-                    Icon(Icons.Outlined.ChatBubbleOutline, stringResource(R.string.classical_source_comments),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            onOpenParts?.let { open ->
-                IconButton(onClick = open) {
-                    Icon(Icons.Outlined.LibraryMusic, stringResource(R.string.classical_all_parts),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            IconButton(onClick = onShare) {
+                Icon(Icons.Outlined.Share, stringResource(R.string.action_share),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             IconButton(onClick = onOpenSleepTimer) {
                 Icon(Icons.Outlined.Timer, stringResource(if (sleepTimerActive) R.string.sleep_timer_running else R.string.sleep_timer_title),
                     tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            IconButton(onClick = onOpenQueue) {
+            Box(Modifier.size(48.dp).clip(CircleShape).combinedClickable(
+                onClick = onOpenQueue,
+                onLongClick = onOpenParts,
+                onLongClickLabel = if (onOpenParts != null) stringResource(R.string.classical_all_parts) else null
+            ), contentAlignment = Alignment.Center) {
                 Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, stringResource(R.string.playlist_queue),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
