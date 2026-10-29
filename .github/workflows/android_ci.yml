@@ -1,4 +1,4 @@
-name: NeriPlayer Android CI
+name: Mov. Android CI
 
 on:
   push:
@@ -229,7 +229,7 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-artifact@v4
         with:
-          name: neri-apk
+          name: mov-apk
           path: app/build/outputs/apk/release/**/*.apk
 
   upload-telegram:
@@ -246,7 +246,7 @@ jobs:
       - name: Download APK artifact
         uses: actions/download-artifact@v4
         with:
-          name: neri-apk
+          name: mov-apk
           path: artifacts
 
       - name: Find APK file

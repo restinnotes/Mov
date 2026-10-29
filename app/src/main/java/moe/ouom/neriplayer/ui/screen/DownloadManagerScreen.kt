@@ -615,7 +615,7 @@ private fun DownloadedSongItem(
                         .size(48.dp)
                         .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop,
-                    error = painterResource(id = R.drawable.ic_launcher_foreground)
+                    error = painterResource(id = R.drawable.ic_mov_round)
                 )
             } else {
                 // 显示默认音乐图标

@@ -1339,7 +1339,7 @@ class AudioPlayerService : Service() {
         NPLogger.d("NERI-APS", "onCreate begin ${buildStateSummary()}")
         ensurePlaybackNotificationChannel()
 
-        mediaSession = MediaSession(this, "NeriPlayerSession").apply {
+        mediaSession = MediaSession(this, "MovSession").apply {
             setCallback(mediaSessionCallback)
             setPlaybackToLocal(mediaSessionAudioAttributes)
             isActive = true
@@ -2017,7 +2017,7 @@ class AudioPlayerService : Service() {
             )
         )
 
-        builder.setContentTitle(song?.displayName() ?: "NeriPlayer")
+        builder.setContentTitle(song?.displayName() ?: getString(R.string.app_name))
         val currentStatusBarLyricState = statusBarLyricState
         currentStatusBarLyricState.line?.let(builder::setTicker)
 
@@ -2162,7 +2162,7 @@ class AudioPlayerService : Service() {
     private fun ensurePlaybackNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
-            "NeriPlayer Playback",
+            "Mov. Playback",
             NotificationManager.IMPORTANCE_LOW
         )
         NotificationManagerCompat.from(this).createNotificationChannel(channel)
@@ -2249,7 +2249,7 @@ class AudioPlayerService : Service() {
         val currentStatusBarLyricState = statusBarLyricState
         return PlaybackNotificationSnapshot(
             songKey = song?.stableKey(),
-            title = song?.displayName() ?: "NeriPlayer",
+            title = song?.displayName() ?: getString(R.string.app_name),
             text = text,
             isTransportActive = PlayerManager.isTransportActive(),
             isPlaybackControlPlaying = PlayerManager.playbackControlPlayingFlow.value,
@@ -2372,7 +2372,7 @@ class AudioPlayerService : Service() {
         }
         requestLargeIconIfNeeded(currentCoverSource)
 
-        val normalTitle = song?.displayName() ?: "NeriPlayer"
+        val normalTitle = song?.displayName() ?: getString(R.string.app_name)
         val normalArtist = song?.displayArtist().orEmpty()
         val lyricPayload = PlayerManager.externalBluetoothLyricPayloadFlow.value
         val useBluetoothLyrics = shouldUseExternalBluetoothLyrics(

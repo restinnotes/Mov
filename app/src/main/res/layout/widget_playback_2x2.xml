@@ -28,7 +28,7 @@
         android:background="@drawable/widget_compact_clip"
         android:contentDescription="@string/widget_album_art"
         android:scaleType="centerCrop"
-        android:src="@drawable/ic_neriplayer_round" />
+        android:src="@drawable/ic_mov_round" />
 
     <ImageView
         android:layout_width="match_parent"

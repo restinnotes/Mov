@@ -1,4 +1,4 @@
-name: NeriPlayer Android Native CI
+name: Mov. Android Native CI
 
 on:
   push:

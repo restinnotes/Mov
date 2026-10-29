@@ -274,7 +274,7 @@ androidComponents {
             output.outputFileName.set(
                 output.versionName.orElse("dev").map { versionName ->
                     val prefix =
-                        if (variant.flavorName == "classical") "NeriClassical" else "NeriPlayer"
+                        if (variant.flavorName == "classical") "Mov" else "Mov-Official"
                     "${prefix}-${versionName}${abiSuffix}.apk"
                 }
             )

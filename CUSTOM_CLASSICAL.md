@@ -1,4 +1,4 @@
-# Neri Classical (Low Power Fork)
+# Mov. — Movement
 
 针对 Android 手机长时间播放 Bilibili 古典音乐定制的 NeriPlayer 轻量低功耗 fork。
 
@@ -11,7 +11,8 @@
 
 ## 1. Fork 基线 / 上游同步点
 
-- **上游仓库**: `https://github.com/cwuom/NeriPlayer`（`origin` 即 upstream；另有同地址 `upstream` 别名）
+- **项目仓库（origin）**: `https://github.com/restinnotes/Mov`。
+- **上游仓库（upstream）**: `https://github.com/cwuom/NeriPlayer`。
 - **Fork base / 当前 upstream HEAD**: `ac7bdea460b84a25e9b6feb1c66b2592360202f1`
   （2026-09-02，`git fetch --all --tags @ 2026-09-21` 确认 master 无更新）
 - **本分支**: `classical-clean`（自 `upstream/master` 新建，按需 cherry-pick 最小补丁）
@@ -28,7 +29,7 @@
 2. **UPSTREAM FIRST**：upstream 已有的队列/歌单/分 P/Library/播放模式/同步/搜索分页直接用，
    不写第二套。
 3. **双安装**：`official`（行为 == upstream）与 `classical`
-  （`applicationIdSuffix = .classical`，显示名 `Neri Classical`）共存。
+  （`applicationIdSuffix = .classical`，显示名 `Mov.`）共存。
 4. **零开销诊断（`LowPowerDiagnostics`）**：无定时器轮询，只挂 Media3 事件；`NeriPower` 单行日志。
 
 ---
@@ -129,7 +130,7 @@
 .\gradlew.bat :app:assembleOfficialRelease    # 官方 baseline 对比
 ```
 
-产物：`app/build/outputs/apk/classical/release/NeriClassical-<version>-classical.apk`
+产物：`app/build/outputs/apk/classical/release/Mov-<version>-classical.apk`
 
 ---
 

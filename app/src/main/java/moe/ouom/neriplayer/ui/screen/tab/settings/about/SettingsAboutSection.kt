@@ -24,20 +24,25 @@ package moe.ouom.neriplayer.ui.screen.tab.settings.about
  */
 
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Update
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import moe.ouom.neriplayer.BuildConfig
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.ui.screen.tab.settings.component.settingsItemClickable
@@ -81,10 +86,10 @@ internal fun SettingsAboutContent(
 private fun SettingsAboutIntroItem() {
     ListItem(
         leadingContent = {
-            Icon(
-                imageVector = Icons.Outlined.Info,
-                contentDescription = stringResource(R.string.settings_about),
-                tint = MaterialTheme.colorScheme.onSurface
+            Image(
+                painter = painterResource(R.drawable.mov_brand_art),
+                contentDescription = stringResource(R.string.app_name),
+                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(14.dp))
             )
         },
         headlineContent = {

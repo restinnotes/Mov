@@ -1,4 +1,4 @@
-name: NeriPlayer Manual Release
+name: Mov. Manual Release
 
 on:
   workflow_dispatch:
@@ -47,8 +47,8 @@ jobs:
           short_sha="$(git rev-parse --short HEAD)"
           target_sha="$(git rev-parse HEAD)"
           release_time="$(TZ=Asia/Taipei date +'%m%d%H%M')"
-          tag_name="NeriPlayer-${short_sha}.${release_time}"
-          previous_tag="$(git for-each-ref --merged HEAD --sort=-creatordate --format='%(refname:short)' 'refs/tags/NeriPlayer-*' | head -n 1 || true)"
+          tag_name="Mov-${short_sha}.${release_time}"
+          previous_tag="$(git for-each-ref --merged HEAD --sort=-creatordate --format='%(refname:short)' 'refs/tags/Mov-*' 'refs/tags/NeriPlayer-*' | head -n 1 || true)"
 
           echo "tag_name=${tag_name}" >> "$GITHUB_OUTPUT"
           echo "release_time=${release_time}" >> "$GITHUB_OUTPUT"

@@ -196,7 +196,7 @@ internal object DownloadedAudioTagWriter {
                 propertyMap,
                 "COMMENT",
                 JSONObject().apply {
-                    put("app", "NeriPlayer")
+                    put("app", "Mov.")
                     put("stableKey", song.stableKey())
                     put("mediaUri", song.mediaUri)
                 }.toString()

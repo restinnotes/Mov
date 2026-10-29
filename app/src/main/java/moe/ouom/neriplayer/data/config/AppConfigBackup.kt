@@ -215,10 +215,10 @@ object AppConfigBackupCodec {
     internal fun decodeForImport(raw: String): DecodedAppConfigBackup {
         val root = parseRootObject(raw)
         val kind = root["kind"]?.jsonPrimitive?.contentOrNull
-        require(kind == CONFIG_KIND) { "Not a NeriPlayer config backup" }
+        require(kind == CONFIG_KIND) { "Not a Mov. config backup" }
 
         val formatVersion = root["formatVersion"]?.jsonPrimitive?.intOrNull
-        require(formatVersion != null) { "Not a NeriPlayer config backup" }
+        require(formatVersion != null) { "Not a Mov. config backup" }
         require(formatVersion in 1..CONFIG_FORMAT_VERSION) {
             "Unsupported config backup format: $formatVersion"
         }
@@ -237,7 +237,7 @@ object AppConfigBackupCodec {
 
     private fun parseRootObject(raw: String): JsonObject {
         return configJson.parseToJsonElement(raw) as? JsonObject
-            ?: throw IllegalArgumentException("Not a NeriPlayer config backup")
+            ?: throw IllegalArgumentException("Not a Mov. config backup")
     }
 
     private fun JsonObject.detectSections(): AppConfigBackupSections {

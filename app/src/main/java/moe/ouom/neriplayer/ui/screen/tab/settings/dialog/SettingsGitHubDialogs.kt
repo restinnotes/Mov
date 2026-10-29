@@ -130,7 +130,7 @@ internal fun SettingsGitHubDialogs(
                         onClick = {
                             val intent = Intent(
                                 Intent.ACTION_VIEW,
-                                "https://github.com/settings/tokens/new?scopes=repo&description=NeriPlayer%20Backup".toUri()
+                                "https://github.com/settings/tokens/new?scopes=repo&description=Mov.%20Backup".toUri()
                             )
                             context.startActivity(intent)
                         }

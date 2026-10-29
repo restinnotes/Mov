@@ -21,7 +21,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "NeriPlayer"
+rootProject.name = "Mov"
 include(":app")
 include(":ksp-annotations")
 include(":ksp-processor")

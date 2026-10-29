@@ -572,7 +572,7 @@ class NeteaseClient {
             .header("Connection", "keep-alive")
             .header("Referer", "https://music.163.com")
             .header("Host", requestUrl.host)
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; NeriPlayer) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+            .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; Mov) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
 
         // WEAPI 的 csrf_token 优先用持久化 Cookie, 再回退本地 CookieJar
         if (mode == CryptoMode.WEAPI) {

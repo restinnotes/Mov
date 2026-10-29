@@ -321,7 +321,7 @@ internal object PlaybackWidgetUpdater {
         if (albumArtwork != null) {
             views.setImageViewBitmap(R.id.widget_album_art, albumArtwork)
         } else {
-            views.setImageViewResource(R.id.widget_album_art, R.drawable.ic_neriplayer_round)
+            views.setImageViewResource(R.id.widget_album_art, R.drawable.ic_mov_round)
         }
 
         val openAppIntent = openAppPendingIntent(context)

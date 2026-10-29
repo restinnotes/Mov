@@ -94,7 +94,7 @@ import android.graphics.Color as AndroidColor
 
 private const val LyricShareCardSizePx = 1080
 private const val LyricShareCardCacheDir = "lyric_share_cards"
-private const val LyricShareCardBrand = "NeriPlayer"
+private const val LyricShareCardBrand = "Mov."
 private const val LyricShareCardCacheMaxFiles = 8
 private const val LyricShareCardCacheMinAgeMs = 5 * 60 * 1000L
 private const val LyricShareCardPreferredTextSizePx = 66f

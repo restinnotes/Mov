@@ -8,10 +8,10 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢给 NeriPlayer 汇报问题！
+        感谢给 Mov. 汇报问题！
         为了使我们更好地帮助你，请提供以下信息。
-        
-        Thank you for reporting an issue with NeriPlayer!
+
+        Thank you for reporting an issue with Mov.!
         To help us assist you better, please provide the following information.
 
   - type: textarea
@@ -28,7 +28,7 @@ body:
         1. 打开应用的某个页面
         2. 点击特定按钮
         3. 观察到错误发生
-        
+
         1. Open a specific page in the app
         2. Click a particular button
         3. Observe the error occurring
@@ -146,7 +146,7 @@ body:
       options:
         - label: 我使用的是最新 CI 版本，并已开启开发者模式（在设置中连续点击 7 次版本号）。/ I'm using the latest CI build with DEBUG Mode enabled (by tapping the version number 7 times in Settings).
           required: false
-        - label: 我已经在 [Issue Tracker](https://github.com/cwuom/NeriPlayer/issues) 中找过我要提出的问题，没有找到相同问题。重复问题会被关闭。 / I have searched in the [Issue Tracker](https://github.com/cwuom/NeriPlayer/issues) and found no similar issues. Duplicate issues will be closed.
+        - label: 我已经在 [Issue Tracker](https://github.com/restinnotes/Mov/issues) 中找过我要提出的问题，没有找到相同问题。重复问题会被关闭。 / I have searched in the [Issue Tracker](https://github.com/restinnotes/Mov/issues) and found no similar issues. Duplicate issues will be closed.
           required: true
         - label: 我已知晓并同意，如果我不按照模板提供的指示进行填写，则我的 Issue 可能会被无条件删除。 / I understand and agree that my issue may be deleted without notice if I do not follow the instructions provided in the template.
           required: true

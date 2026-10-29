@@ -39,13 +39,13 @@
         android:localeConfig="@xml/locales_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.NeriPlayer.Starting"
+        android:theme="@style/Theme.Mov.Starting"
         android:name=".NeriPlayerApplication"
         tools:targetApi="33">
 
         <meta-data android:name="lyricon_module" android:value="true" />
-        <meta-data android:name="lyricon_module_author" android:value="NeriPlayer" />
-        <meta-data android:name="lyricon_module_description" android:value="NeriPlayer Lyricon Provider" />
+        <meta-data android:name="lyricon_module_author" android:value="Mov." />
+        <meta-data android:name="lyricon_module_description" android:value="Mov. Lyricon Provider" />
         <meta-data
             android:name="lyricon_module_tags"
             android:resource="@array/lyricon_module_tags" />
