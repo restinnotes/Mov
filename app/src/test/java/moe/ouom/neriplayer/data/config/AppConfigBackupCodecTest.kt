@@ -86,7 +86,7 @@ class AppConfigBackupCodecTest {
             AppConfigBackupCodec.decode("""{"hello":"world"}""")
         }
 
-        assertTrue(error.message.orEmpty().contains("NeriPlayer config"))
+        assertTrue(error.message.orEmpty().contains("Mov. config"))
     }
 
     @Test
