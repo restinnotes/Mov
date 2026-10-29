@@ -108,6 +108,7 @@ fun ClassicalCommentsScreen(
     viewModel: ClassicalSourceViewModel,
     onSeekTo: (Long) -> Unit,
     onBack: () -> Unit,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -116,8 +117,8 @@ fun ClassicalCommentsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .windowInsetsPadding(WindowInsets.navigationBars)
+            .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars))
     ) {
         // BBPlayer elevated Appbar
         Surface(
@@ -293,7 +294,7 @@ fun ClassicalCommentsScreen(
 }
 
 @Composable
-private fun SourceIntroContent(
+internal fun SourceIntroContent(
     introState: ClassicalSourceViewModel.IntroState,
     modifier: Modifier = Modifier
 ) {

@@ -183,4 +183,21 @@
     <string name="classical_parts_failed">Could not load parts. Please retry.</string>
     <string name="classical_parts_retry">Retry</string>
     <string name="classical_parts_empty">No matching parts</string>
+    <string name="classical_page_source">Source</string>
+    <string name="classical_page_player">Player</string>
+    <string name="classical_page_queue">Queue</string>
+    <string name="classical_playback_tools">Playback tools</string>
+    <string name="classical_player_swipe_hint">Swipe left for parts and queue · right for source and comments</string>
+    <string name="classical_collect_to">Save to playlist</string>
+    <string name="classical_create_collection">Create and save</string>
+    <string name="classical_source_info">Information</string>
+    <string name="classical_source_comments">Comments</string>
+    <string name="classical_song_details">Track details</string>
+    <string name="classical_repeat_one">Repeat one</string>
+    <string name="classical_repeat_all">Repeat all</string>
+    <string name="classical_repeat_off">Sequential</string>
+    <string name="bili_uploader_search_hint">Search this uploader’s videos</string>
+    <string name="bili_uploader_search_empty">No matching videos</string>
+    <string name="classical_like_song">Add to liked songs. Hold to save to a playlist</string>
+    <string name="classical_unlike_song">Remove from liked songs. Hold to save to a playlist</string>
 </resources>

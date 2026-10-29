@@ -994,7 +994,8 @@ class BiliClient(
         mid: Long,
         page: Int = 1,
         pageSize: Int = UPLOADER_VIDEO_PAGE_SIZE,
-        order: String = "pubdate"
+        order: String = "pubdate",
+        keyword: String = ""
     ): UploaderVideoPage = withContext(Dispatchers.IO) {
         require(mid > 0L) { "Uploader mid must be positive" }
         val resolvedPage = page.coerceAtLeast(1)
@@ -1005,7 +1006,8 @@ class BiliClient(
                 "mid" to mid.toString(),
                 "pn" to resolvedPage.toString(),
                 "ps" to resolvedPageSize.toString(),
-                "order" to order
+                "order" to order,
+                "keyword" to keyword.trim()
             )
         ).requireSuccessfulData("uploader videos")
         parseBiliUploaderVideoPage(

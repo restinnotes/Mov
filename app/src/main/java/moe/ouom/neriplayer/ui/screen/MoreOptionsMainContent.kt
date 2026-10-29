@@ -124,7 +124,7 @@ internal fun MoreOptionsMainContent(
             onOpenPlaybackSound = onOpenPlaybackSound,
             onShowQualitySwitch = onShowQualitySwitch
         )
-        DownloadOrDetailsAction(
+        if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled || !isLocalSong) DownloadOrDetailsAction(
             viewModel = viewModel,
             song = originalSong,
             isLocalSong = isLocalSong,
@@ -146,13 +146,15 @@ internal fun MoreOptionsMainContent(
                 modifier = Modifier.clickable(onClick = onOpenBiliVideoSkip)
             )
         }
-        ShareSongAction(
-            song = originalSong,
-            queue = queue,
-            snackbarHostState = snackbarHostState,
-            onDismissSheet = onDismissSheet
-        )
-        PlaybackStatsAction(originalSong)
+        if (!moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled) {
+            ShareSongAction(
+                song = originalSong,
+                queue = queue,
+                snackbarHostState = snackbarHostState,
+                onDismissSheet = onDismissSheet
+            )
+            PlaybackStatsAction(originalSong)
+        }
         ListItem(
             headlineContent = { Text(stringResource(R.string.listen_together_title)) },
             leadingContent = { Icon(Icons.Outlined.Headphones, null) },
@@ -383,7 +385,7 @@ private fun LyricsAndAlbumActions(
 }
 
 @Composable
-private fun ShareSongAction(
+internal fun ShareSongAction(
     song: SongItem,
     queue: List<SongItem>,
     snackbarHostState: SnackbarHostState,
@@ -434,7 +436,7 @@ private fun ShareSongAction(
 }
 
 @Composable
-private fun PlaybackStatsAction(song: SongItem) {
+internal fun PlaybackStatsAction(song: SongItem) {
     val songKey = remember(song) { song.stableKey() }
     val trackStat by produceState<TrackStat?>(initialValue = null, songKey) {
         value = withContext(Dispatchers.IO) {

@@ -159,6 +159,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -1284,7 +1285,8 @@ internal fun NowPlayingQueueSheet(
     allowQueueReorder: Boolean,
     onDismissRequest: () -> Unit,
     onOpenCurrentPlaybackSource: (() -> Unit)? = null,
-    onOpenBiliParts: (SongItem) -> Unit = {}
+    onOpenBiliParts: (SongItem) -> Unit = {},
+    embedded: Boolean = false
 ) {
     val context = LocalContext.current
     val screenScope = rememberCoroutineScope()
@@ -1480,7 +1482,7 @@ internal fun NowPlayingQueueSheet(
         showQueueIndexJumpDialog = false
         exitSelection()
         screenScope.launch {
-            runCatching { sheetState.hide() }
+            if (!embedded) runCatching { sheetState.hide() }
             onDismissRequest()
         }
     }
@@ -1572,11 +1574,7 @@ internal fun NowPlayingQueueSheet(
         if (cleanedKeys != selectedKeys) selectedKeys = cleanedKeys
     }
 
-    ModalBottomSheet(
-        onDismissRequest = ::dismissQueue,
-        sheetState = sheetState,
-        sheetGesturesEnabled = false
-    ) {
+    val queueContent: @Composable () -> Unit = {
         BackHandler(enabled = selectionMode && !showExportSheet) {
             exitSelection()
         }
@@ -1600,8 +1598,8 @@ internal fun NowPlayingQueueSheet(
 
         Box(
             modifier = Modifier
-                .fillMaxHeight(QueueSheetMaxHeightFraction)
-                .windowInsetsPadding(WindowInsets.navigationBars)
+                .then(if (embedded) Modifier.fillMaxSize() else Modifier.fillMaxHeight(QueueSheetMaxHeightFraction)
+                    .windowInsetsPadding(WindowInsets.navigationBars))
         ) {
             Column(Modifier.fillMaxSize()) {
                 if (selectionMode) {
@@ -1880,6 +1878,12 @@ internal fun NowPlayingQueueSheet(
             )
         }
     }
+
+    if (embedded) queueContent() else ModalBottomSheet(
+        onDismissRequest = ::dismissQueue,
+        sheetState = sheetState,
+        sheetGesturesEnabled = false
+    ) { queueContent() }
 
     if (showExportSheet) {
         PlaylistExportSheet(
@@ -2236,6 +2240,8 @@ fun NowPlayingScreen(
     val currentIndexInDisplay = queueDisplayState.currentDisplayIndex
 
     var showAddSheet by remember { mutableStateOf(false) }
+    var collectionSong by remember { mutableStateOf<SongItem?>(null) }
+    val collectionRepo = remember(context) { LocalPlaylistRepository.getInstance(context) }
     var showQueueSheet by remember { mutableStateOf(false) }
     var biliPartsSong by remember { mutableStateOf<SongItem?>(null) }
     // Classical 评论区页面（BBPlayer 风格）：由播放器次控栏评论图标进入。
@@ -3846,49 +3852,99 @@ fun NowPlayingScreen(
                     }
                 } else {
                     if (moe.ouom.neriplayer.core.classical.ClassicalLowPower.enabled && !isLandscape) {
-                        moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
-                            currentSong = currentSong,
-                            coverUrl = currentCoverUrl,
-                            isPlaying = isPlaybackControlPlaying,
-                            isPlaybackWaiting = isPlaybackWaiting,
-                            isAudioRouteMuted = isAudioRouteMuted,
-                            isFavorite = isFavorite,
-                            onToggleFavorite = {
-                                val song = currentSong ?: return@BBPlayerPlaybackPortraitContent
-                                val willFav = nextFavoriteStateAfterTap(isFavorite)
-                                launchWithLocalSyncWarning(
-                                    song = song,
-                                    actionLabel = composeResources.getString(R.string.favorite_add),
-                                    warnForLocalSync = willFav
-                                ) {
-                                    favOverride = willFav
-                                    PlayerManager.toggleCurrentFavorite()
-                                }
-                            },
-                            playbackDurationMs = durationMs,
-                            onSeekTo = { pos -> PlayerManager.seekTo(pos) },
-                            onPrev = { PlayerManager.previous() },
-                            onNext = { PlayerManager.next() },
-                            onTogglePlayPause = { PlayerManager.togglePlayPause() },
-                            shuffleEnabled = shuffleEnabled,
-                            onToggleShuffle = { PlayerManager.setShuffle(!shuffleEnabled) },
-                            repeatMode = repeatMode,
-                            onCycleRepeatMode = { PlayerManager.cycleRepeatMode() },
-                            onOpenComments = { showCommentsScreen = true },
-                            onOpenQueue = { showQueueSheet = true },
-                            onOpenParts = if (currentSong?.biliBvidOrNull() != null) ({ biliPartsSong = currentSong }) else null,
-                            sleepTimerActive = sleepTimerState.isActive,
-                            onOpenSleepTimer = { showSleepTimerDialog = true },
-                            onOpenMoreOptions = { showMoreOptions = true },
+                        moe.ouom.neriplayer.ui.screen.classical.ClassicalPlaybackPager(
                             onNavigateUp = onNavigateUp,
-                            onOpenArtist = openCurrentArtist,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    detectVerticalDragGestures { _, dragAmount ->
-                                        if (dragAmount > 60) onNavigateUp()
+                            onOpenTools = { showMoreOptions = true },
+                            source = { returnToPlayer ->
+                                moe.ouom.neriplayer.ui.screen.classical.ClassicalSourcePane(
+                                    viewModel = sourceViewModel,
+                                    song = currentSong,
+                                    queue = displayedQueue,
+                                    snackbarHostState = snackbarHostState,
+                                    onDetails = { detailSong = it },
+                                    onSeekTo = { PlayerManager.seekTo(it); returnToPlayer() },
+                                    onReturnToPlayer = returnToPlayer
+                                )
+                            },
+                            queue = { returnToPlayer ->
+                                Column(Modifier.fillMaxSize()) {
+                                    androidx.compose.foundation.layout.FlowRow(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        androidx.compose.material3.FilterChip(
+                                            selected = shuffleEnabled,
+                                            onClick = { PlayerManager.setShuffle(!shuffleEnabled) },
+                                            label = { Text(stringResource(R.string.player_shuffle)) }
+                                        )
+                                        androidx.compose.material3.FilterChip(
+                                            selected = repeatMode != Player.REPEAT_MODE_OFF,
+                                            onClick = { PlayerManager.cycleRepeatMode() },
+                                            label = { Text(stringResource(when (repeatMode) {
+                                                Player.REPEAT_MODE_ONE -> R.string.classical_repeat_one
+                                                Player.REPEAT_MODE_ALL -> R.string.classical_repeat_all
+                                                else -> R.string.classical_repeat_off
+                                            })) }
+                                        )
+                                        androidx.compose.material3.FilterChip(
+                                            selected = sleepTimerState.isActive,
+                                            onClick = { showSleepTimerDialog = true },
+                                            label = { Text(stringResource(if (sleepTimerState.isActive)
+                                                R.string.sleep_timer_running else R.string.sleep_timer_title)) }
+                                        )
+                                        if (currentSong?.biliBvidOrNull() != null) {
+                                            TextButton(onClick = { biliPartsSong = currentSong }) {
+                                                Text(stringResource(R.string.classical_all_parts))
+                                            }
+                                        }
+                                    }
+                                    Box(Modifier.weight(1f)) {
+                                        NowPlayingQueueSheet(
+                                            displayedQueueItems = displayedQueueItems,
+                                            currentIndexInDisplay = currentIndexInDisplay,
+                                            offlineMode = offlineMode,
+                                            allowQueueReorder = playbackProgressSeekEnabled,
+                                            onDismissRequest = returnToPlayer,
+                                            onOpenCurrentPlaybackSource = onOpenCurrentPlaybackSource,
+                                            onOpenBiliParts = { biliPartsSong = it },
+                                            embedded = true
+                                        )
                                     }
                                 }
+                            },
+                            player = {
+                                moe.ouom.neriplayer.ui.screen.classical.BBPlayerPlaybackPortraitContent(
+                                    currentSong = currentSong,
+                                    coverUrl = currentCoverUrl,
+                                    isPlaying = isPlaybackControlPlaying,
+                                    isPlaybackWaiting = isPlaybackWaiting,
+                                    isAudioRouteMuted = isAudioRouteMuted,
+                                    isFavorite = isFavorite,
+                                    onChooseCollection = { collectionSong = currentSong },
+                                    embedded = true,
+                                    onToggleFavorite = {
+                                        val song = currentSong ?: return@BBPlayerPlaybackPortraitContent
+                                        val willFav = nextFavoriteStateAfterTap(isFavorite)
+                                        launchWithLocalSyncWarning(
+                                            song = song,
+                                            actionLabel = composeResources.getString(R.string.favorite_add),
+                                            warnForLocalSync = willFav
+                                        ) {
+                                            favOverride = willFav
+                                            PlayerManager.toggleCurrentFavorite()
+                                        }
+                                    },
+                                    playbackDurationMs = durationMs,
+                                    onSeekTo = { pos -> PlayerManager.seekTo(pos) },
+                                    onPrev = { PlayerManager.previous() },
+                                    onNext = { PlayerManager.next() },
+                                    onTogglePlayPause = { PlayerManager.togglePlayPause() },
+                                    onOpenMoreOptions = { showMoreOptions = true },
+                                    onNavigateUp = onNavigateUp,
+                                    onOpenArtist = openCurrentArtist,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         )
                     } else {
                         Column(
@@ -3994,6 +4050,34 @@ fun NowPlayingScreen(
                     onSelect = { option ->
                         PlayerManager.changeCurrentPlaybackQuality(option.key)
                         showQualitySwitchDialog = false
+                    }
+                )
+            }
+
+            collectionSong?.let { song ->
+                PlaylistExportSheet(
+                    title = stringResource(R.string.classical_collect_to),
+                    playlists = playlists.filterNot { LocalFilesPlaylist.isSystemPlaylist(it, context) },
+                    selectedCount = 1,
+                    createActionLabel = stringResource(R.string.classical_create_collection),
+                    onDismissRequest = { collectionSong = null },
+                    onCreateAndExport = { name ->
+                        launchWithLocalSyncWarning(song, composeResources.getString(R.string.classical_collect_to)) {
+                            screenScope.launchLocalPlaylistMutation("createCollectionFromPlayer", onResult = { result ->
+                                screenScope.showPlaylistBatchExportCreatedResult(context, snackbarHostState, collectionRepo, result)
+                            }) { collectionRepo.createPlaylistWithSongs(name, listOf(song)) }
+                        }
+                        collectionSong = null
+                    },
+                    onExportToPlaylist = { playlist ->
+                        launchWithLocalSyncWarning(song, composeResources.getString(R.string.classical_collect_to)) {
+                            screenScope.launchLocalPlaylistMutation("collectSongFromPlayer", onResult = { result ->
+                                screenScope.showPlaylistBatchExportAddedResult(
+                                    context, snackbarHostState, collectionRepo, playlist.id, playlist.name, result
+                                )
+                            }) { collectionRepo.addSongsToPlaylistWithResult(playlist.id, listOf(song)) }
+                        }
+                        collectionSong = null
                     }
                 )
             }

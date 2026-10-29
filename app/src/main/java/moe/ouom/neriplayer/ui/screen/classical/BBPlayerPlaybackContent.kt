@@ -1,9 +1,11 @@
 package moe.ouom.neriplayer.ui.screen.classical
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,16 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.FormatListBulleted
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.Repeat
-import androidx.compose.material.icons.outlined.Shuffle
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import moe.ouom.neriplayer.R
@@ -70,16 +65,15 @@ import moe.ouom.neriplayer.data.model.displayName
 import moe.ouom.neriplayer.util.format.formatDuration
 
 /**
- * 1:1 BBPlayer 风格竖屏播放页（Classical flavor 竖屏专用）。
+ * Classical 中央播放页，作品信息和队列由相邻页面承载。
  *
  * 结构：
- * - 顶栏：左返回 (v) + 居中 "正在播放" + 右更多 (⋮)
+ * - 嵌入三页容器时由容器提供顶栏
  * - 封面：居中大圆角矩形封面 (RoundedCornerShape 28dp)，无任何角标
  * - 标题栏：左侧大字标题 (加粗) + 作者 (点击进 UP 主)，右侧爱心收藏
  * - 进度条：简洁 Slider + 左右两端时间 ("00:04" / "01:45:52")，无杂乱码率文本
  * - 主控区：上一首、大号圆形边框播放/暂停按钮 (直径 76dp)、下一首
- * - 次控区：随机播放、循环模式、定时关闭、评论气泡、播放队列
- * - 无底部悬浮药丸 dock，无歌词分页
+ * - 次级播放工具和分P位于右侧队列页
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -91,28 +85,22 @@ fun BBPlayerPlaybackPortraitContent(
     isAudioRouteMuted: Boolean,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
+    onChooseCollection: () -> Unit,
     playbackDurationMs: Long,
     onSeekTo: (Long) -> Unit,
     onPrev: () -> Unit,
     onNext: () -> Unit,
     onTogglePlayPause: () -> Unit,
-    shuffleEnabled: Boolean,
-    onToggleShuffle: () -> Unit,
-    repeatMode: Int,
-    onCycleRepeatMode: () -> Unit,
-    onOpenComments: () -> Unit,
-    onOpenQueue: () -> Unit,
-    onOpenParts: (() -> Unit)? = null,
-    sleepTimerActive: Boolean,
-    onOpenSleepTimer: () -> Unit,
     onOpenMoreOptions: () -> Unit,
     onNavigateUp: () -> Unit,
     onOpenArtist: () -> Unit,
+    embedded: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val configuration = LocalConfiguration.current
     val screenWidthDp = configuration.screenWidthDp.dp
-    val coverSize = (screenWidthDp - 64.dp).coerceIn(240.dp, 360.dp)
+    val coverSize = minOf((screenWidthDp - 64.dp).value, configuration.screenHeightDp * 0.40f)
+        .coerceIn(160f, 340f).dp
 
     val playbackPositionMs by PlayerManager.playbackPositionFlow.collectAsStateWithLifecycle()
     var draggingProgressFraction by remember { mutableStateOf<Float?>(null) }
@@ -126,14 +114,15 @@ fun BBPlayerPlaybackPortraitContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .windowInsetsPadding(WindowInsets.statusBars)
-            .windowInsetsPadding(WindowInsets.navigationBars)
+            .then(if (embedded) Modifier else Modifier.windowInsetsPadding(WindowInsets.statusBars)
+                .windowInsetsPadding(WindowInsets.navigationBars))
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         // 1. 顶栏：v (左) + 正在播放 (中) + ⋮ (右)
-        Row(
+        if (!embedded) Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
@@ -229,13 +218,17 @@ fun BBPlayerPlaybackPortraitContent(
                     modifier = Modifier.clickable(onClick = onOpenArtist)
                 )
             }
-            IconButton(
-                onClick = onToggleFavorite,
-                modifier = Modifier.size(44.dp)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(48.dp).clip(CircleShape).combinedClickable(
+                    onClick = onToggleFavorite,
+                    onLongClick = onChooseCollection,
+                    onLongClickLabel = stringResource(R.string.classical_collect_to)
+                )
             ) {
                 Icon(
                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                    contentDescription = if (isFavorite) "取消收藏" else "收藏",
+                    contentDescription = stringResource(if (isFavorite) R.string.classical_unlike_song else R.string.classical_like_song),
                     tint = if (isFavorite) Color(0xFFE91E63) else MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(26.dp)
                 )
@@ -353,69 +346,11 @@ fun BBPlayerPlaybackPortraitContent(
         }
 
         Spacer(Modifier.height(20.dp))
-
-        // 6. 次级控制区：随机、循环、定时关闭、评论、队列
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onToggleShuffle, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Shuffle,
-                    contentDescription = if (shuffleEnabled) "随机播放已开启" else "随机播放已关闭",
-                    modifier = Modifier.size(24.dp),
-                    tint = if (shuffleEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onCycleRepeatMode, modifier = Modifier.size(40.dp)) {
-                val (repeatIcon, isActive) = when (repeatMode) {
-                    Player.REPEAT_MODE_ONE -> Icons.Filled.RepeatOne to true
-                    Player.REPEAT_MODE_ALL -> Icons.Outlined.Repeat to true
-                    else -> Icons.Outlined.Repeat to false
-                }
-                Icon(
-                    imageVector = repeatIcon,
-                    contentDescription = "循环模式",
-                    modifier = Modifier.size(24.dp),
-                    tint = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onOpenSleepTimer, modifier = Modifier.size(48.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.Timer,
-                    contentDescription = stringResource(
-                        if (sleepTimerActive) R.string.sleep_timer_running else R.string.sleep_timer_title
-                    ),
-                    modifier = Modifier.size(24.dp),
-                    tint = if (sleepTimerActive) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (onOpenParts != null) {
-                androidx.compose.material3.TextButton(onClick = onOpenParts) {
-                    Text(stringResource(R.string.classical_parts_short))
-                }
-            }
-            IconButton(onClick = onOpenComments, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.ChatBubbleOutline,
-                    contentDescription = "评论区",
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            IconButton(onClick = onOpenQueue, modifier = Modifier.size(40.dp)) {
-                Icon(
-                    imageVector = Icons.Outlined.FormatListBulleted,
-                    contentDescription = "播放队列",
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+        Text(
+            text = stringResource(R.string.classical_player_swipe_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(16.dp))
     }
 }

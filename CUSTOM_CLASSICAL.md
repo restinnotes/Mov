@@ -3,7 +3,7 @@
 针对 Android 手机长时间播放 Bilibili 古典音乐定制的 NeriPlayer 轻量低功耗 fork。
 
 > 方向：**相对于最新 upstream 最少改动**。队列、歌单、分 P、Library、播放模式、同步全部跟 upstream；
-> Classical 只做低功耗减法 + B 站默认搜索/薄聚合 + NowPlaying 右滑 Source（简介/评论）。
+> Classical 只做低功耗减法 + B 站默认搜索/薄聚合 + 播放页三页布局（作品/播放/队列）。
 > AI Metadata / Assistant / Classical Library / Timeline / Workbench 已从本分支删除，
 > 留在 `archive/classical-ai-experiment`（tag `classical-ai-experiment-3fedb88d`）。
 
@@ -63,29 +63,34 @@
 - **Bili 排序补丁**（`util/search/RemotePlatformSearchRanker.kt`）：仅当 `hit_columns` 标明命中时
   才把 description/tag 纳入匹配；server 顺序做 tie-break；音乐区轻微 boost、绝不过滤。
 - Classical 源顺序 Bili 优先，不预拉网易推荐；pager 越界 clamp（`ui/util/PagerTabSafety.kt`）。
+- UP 主详情的投稿页可按关键词请求 B 站搜索并继续分页；输入防抖 350ms，清空恢复全部投稿，
+  切换关键词或 UP 主时取消旧请求并拒绝晚到结果；搜索失败支持重试。
 
 ---
 
 ## 5. Source 与播放体验（BBPlayer 风格，用 Compose 重写，无共享代码）
 
-- Classical 竖屏次控栏提供睡眠定时器入口，开启时高亮；支持倒计时、播完当前曲目、
+- Classical 竖屏右侧队列页提供睡眠定时器入口，开启时高亮；支持倒计时、播完当前曲目、
   播完队列，以及倒计时到期后播完当前曲目。加载/中途缓冲使用现有播放控件的旋转等待动画，
   等待超过 1 秒显示，恢复或暂停后移除。
 - Bilibili 常规 `bilivideo` 与海外 Akamai CDN 同级，保留接口返回顺序；P2P/mcdn 放到末尾，
   不修改带签名的 CDN 域名或参数。接口顺序不能保证每个网络里都最快，仍保留同音轨备用线路恢复。
 - 中途持续无进度时，运行期看门狗先停止旧读取并在原位置重新 prepare，之后才切备用线路或刷新 URL；
   短暂网络故障保留已缓存字节。实际播放推进后由运行期看门狗负责，避免与启动看门狗同时恢复。
-- 播放页（classical 竖屏）：圆形封面、居中标题/作者、顶栏评论气泡（仅 B 站可用，
-  直达评论）；无歌词 tab/横滑。横屏/宽屏与 official 保持上游布局。
+- 播放页（classical 竖屏）：默认打开中间播放页，左右滑动或点顶部标签可切换；
+  中间保留圆角封面、标题/作者、收藏、进度和主播放控制。左页承载作品信息、评论、
+  曲目详情、分享和收听统计；右页承载队列、分P入口、随机、循环和定时关闭。
+  右上角工具菜单保留音质、音效、下载等操作。横屏/宽屏与 official 保持上游布局。
+- 收藏短按加入/移出默认“我喜欢的音乐”，长按选择其他本地歌单或新建歌单；
+  复用歌单仓库的去重、同步提醒和操作结果反馈。
 - 评论：分隔线、相对时间、行内表情、图片九宫格（点看大图）、前排回复预览气泡、
   完整楼中楼按需加载、精选/最新切换、时间戳 seek；点赞数仅展示。
 - 队列：点播 B 站视频即整视频进队列（先播当前分P，后台补齐其余分P，切歌丢弃晚到结果）；
   队列 sheet 里同一视频连续分P成组显示，大标题默认展开、点标题收缩。
   视频标题存于 album 第 4 段（stableKey 不含 album 原文，新旧格式身份一致）。
 
-- NowPlaying 默认 PLAYER；顶栏评论气泡直达 Source（classical only）；
-  队列仍走上游 Queue Sheet 样式（加分组合头），不进 pager；无 5 页 pager。
-- 顶部固定 tab **[ 简介 ][ 评论 ]**，各自纵向滚动，无嵌套 HorizontalPager。
+- 右侧队列页内嵌现有队列组件，保留分组、多选、排序和导出；普通队列弹层入口仍可复用。
+- 左页顶部固定 tab **[ 作品信息 ][ 评论 ]**，各自纵向滚动，无嵌套 HorizontalPager。
 - 简介：封面、原标题、UP 主、发布日期、视频简介、来源链接。**无分 P 列表**
   （分 P 已是队列独立项）。
 - 评论：LazyColumn，`stable key = rpid`，连续滚动自动翻页；

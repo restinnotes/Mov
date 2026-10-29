@@ -185,6 +185,8 @@ fun BiliUploaderDetailScreen(
                 onTabSelected = { selectedTab = it },
                 onRetry = viewModel::retry,
                 onLoadMoreVideos = viewModel::loadMoreVideos,
+                onVideoQueryChange = viewModel::setVideoQuery,
+                onRetryVideos = viewModel::retryVideos,
                 onLoadMoreContents = viewModel::loadMoreContents,
                 onVideoClick = { video, index ->
                     scope.launch {
@@ -224,6 +226,8 @@ private fun BiliUploaderContent(
     onTabSelected: (Int) -> Unit,
     onRetry: () -> Unit,
     onLoadMoreVideos: () -> Unit,
+    onVideoQueryChange: (String) -> Unit,
+    onRetryVideos: () -> Unit,
     onLoadMoreContents: () -> Unit,
     onVideoClick: (BiliClient.UploaderVideo, Int) -> Unit,
     onContentClick: (BiliClient.UploaderContent) -> Unit,
@@ -293,8 +297,27 @@ private fun BiliUploaderContent(
 
             when (selectedTab) {
                 0 -> {
-                    if (ui.videos.isEmpty()) {
-                        item { EmptyBlock(stringResource(R.string.bili_uploader_videos_empty)) }
+                    item(key = "uploader_video_search") {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = ui.videoQuery,
+                            onValueChange = onVideoQueryChange,
+                            placeholder = { Text(stringResource(R.string.bili_uploader_search_hint)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                            trailingIcon = {
+                                if (ui.videoQuery.isNotEmpty()) androidx.compose.material3.TextButton(onClick = { onVideoQueryChange("") }) {
+                                    Text(stringResource(R.string.action_clear))
+                                }
+                            }
+                        )
+                    }
+                    if (ui.videosSearching) {
+                        item { LoadingBlock() }
+                    } else if (ui.videosError != null) {
+                        item { ErrorBlock(ui.videosError, onRetryVideos) }
+                    }
+                    if (!ui.videosSearching && ui.videosError == null && ui.videos.isEmpty()) {
+                        item { EmptyBlock(stringResource(if (ui.videoQuery.isBlank()) R.string.bili_uploader_videos_empty else R.string.bili_uploader_search_empty)) }
                     } else {
                         itemsIndexed(ui.videos, key = { _, video -> video.bvid }) { index, video ->
                             BiliUploaderVideoRow(
