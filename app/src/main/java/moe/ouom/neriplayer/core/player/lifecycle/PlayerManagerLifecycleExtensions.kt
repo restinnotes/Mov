@@ -94,6 +94,7 @@ import moe.ouom.neriplayer.core.player.policy.audio.shouldConfirmBluetoothDiscon
 import moe.ouom.neriplayer.core.player.policy.command.PlaybackCommandSource
 import moe.ouom.neriplayer.core.player.policy.command.shouldClearResumePlaybackRequestOnPlayWhenReadyPause
 import moe.ouom.neriplayer.core.player.policy.command.shouldResumeSilentlyForListenTogetherNoisyPause
+import moe.ouom.neriplayer.core.player.engine.BackgroundSoundMixState
 import moe.ouom.neriplayer.core.player.policy.offload.requiresPcmAudioProcessing
 import moe.ouom.neriplayer.core.player.policy.offload.shouldUpdateAudioOffloadForReactiveChange
 import moe.ouom.neriplayer.core.player.policy.pending.shouldAcceptPlayerCallback
@@ -469,6 +470,7 @@ internal fun PlayerManager.initializeImpl(
         )
 
         // USB 独占优先保留解码器的原生整数 PCM, 别在进入 native USB 前强行改成 float
+        loadBackgroundSoundSettings()
         val enableFloatOutput =
             playbackHighResolutionOutputEnabled && !usbExclusivePlaybackEnabled
         val renderersFactory = ReactiveRenderersFactory(app)
@@ -1567,7 +1569,8 @@ internal fun PlayerManager.ensureInitializedImpl() {
 
 internal fun PlayerManager.updateAudioOffloadPreferences(reason: String) {
     if (!isPlayerInitialized()) return
-    val requiresPcmProcessing = requiresPcmAudioProcessing(
+    refreshBackgroundSoundMix()
+    val requiresPcmProcessing = BackgroundSoundMixState.config.requiresProcessing || requiresPcmAudioProcessing(
         usbExclusivePlaybackEnabled = usbExclusivePlaybackEnabled,
         playbackSpeed = playbackSoundConfig.speed,
         playbackPitch = playbackSoundConfig.pitch,

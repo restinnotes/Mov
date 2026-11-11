@@ -284,6 +284,7 @@ import moe.ouom.neriplayer.ui.component.lyrics.LyricsEditorSeed
 import moe.ouom.neriplayer.ui.component.lyrics.LyricEntry
 import moe.ouom.neriplayer.ui.component.lyrics.LyricShareSheet
 import moe.ouom.neriplayer.ui.component.lyrics.LyricVisualSpec
+import moe.ouom.neriplayer.ui.component.playback.NoiseMaskingSheet
 import moe.ouom.neriplayer.ui.component.playback.PlaybackSoundSheet
 import moe.ouom.neriplayer.ui.component.playback.SongMetadataSearchContent
 import moe.ouom.neriplayer.ui.component.playback.NowPlayingCoverPreviewDialog
@@ -4352,7 +4353,8 @@ private enum class MoreOptionsPage {
     EDIT_INFO,
     BILI_VIDEO_SKIP,
     LISTEN_TOGETHER,
-    PLAYBACK_SOUND
+    PLAYBACK_SOUND,
+    NOISE_MASKING
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -4450,6 +4452,7 @@ fun MoreOptionsSheet(
                         onOpenSearch = { page = MoreOptionsPage.SEARCH },
                         onOpenEditInfo = { page = MoreOptionsPage.EDIT_INFO },
                         onOpenPlaybackSound = { page = MoreOptionsPage.PLAYBACK_SOUND },
+                        onOpenNoiseMasking = { page = MoreOptionsPage.NOISE_MASKING },
                         onOpenLyricBehavior = { page = MoreOptionsPage.LYRIC_BEHAVIOR },
                         onOpenFontSize = { page = MoreOptionsPage.FONT_SIZE },
                         onOpenBiliVideoSkip = { page = MoreOptionsPage.BILI_VIDEO_SKIP },
@@ -4567,6 +4570,10 @@ fun MoreOptionsSheet(
                         snackbarHostState = snackbarHostState,
                         offlineMode = offlineMode
                     )
+                }
+
+                MoreOptionsPage.NOISE_MASKING -> {
+                    NoiseMaskingSheet(onDismiss = { page = MoreOptionsPage.MAIN })
                 }
 
                 MoreOptionsPage.PLAYBACK_SOUND -> {

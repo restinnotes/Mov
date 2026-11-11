@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="background_sound_title">背景声音</string>
+    <string name="background_sound_hint">叠加在音乐上，随播放暂停。雨声与风扇声为连续合成音；两个音量独立调节。</string>
+    <string name="background_sound_unavailable">请关闭高解析度输出和 USB 独占播放后使用背景混音。</string>
+    <string name="background_sound_pink">粉红噪音</string>
+    <string name="background_sound_brown">棕噪音</string>
+    <string name="background_sound_white">白噪音</string>
+    <string name="background_sound_rain">平稳雨声</string>
+    <string name="background_sound_fan">风扇声</string>
+    <string name="background_sound_music_volume">音乐音量：%1$d%%</string>
+    <string name="background_sound_volume">背景音量：%1$d%%</string>
+    <string name="noise_masking_title">防噪音模式</string>
+    <string name="noise_masking_enable">开启防噪音模式</string>
+    <string name="noise_masking_desc">用平稳背景声掩蔽环境噪音，独立调节音乐与背景音量。关闭模式后恢复正常音乐音量。</string>
+    <string name="noise_masking_active">已开启 · 音乐与背景声音叠加播放</string>
+    <string name="noise_masking_reset">重置防噪音模式</string>
+</resources>

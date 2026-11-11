@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="background_sound_title">Background sound</string>
+    <string name="background_sound_hint">Layer sound over music and pause together. Rain and fan are continuously synthesized. Adjust each volume independently.</string>
+    <string name="background_sound_unavailable">Turn off high-resolution output and USB exclusive playback to use background mixing.</string>
+    <string name="background_sound_pink">Pink noise</string>
+    <string name="background_sound_brown">Brown noise</string>
+    <string name="background_sound_white">White noise</string>
+    <string name="background_sound_rain">Steady rain</string>
+    <string name="background_sound_fan">Fan</string>
+    <string name="background_sound_music_volume">Music volume: %1$d%%</string>
+    <string name="background_sound_volume">Background volume: %1$d%%</string>
+    <string name="noise_masking_title">Noise masking mode</string>
+    <string name="noise_masking_enable">Enable noise masking</string>
+    <string name="noise_masking_desc">Mask ambient noise with steady background sound. Adjust music and background levels independently. Turning the mode off restores normal music volume.</string>
+    <string name="noise_masking_active">On · Music and background sound play together</string>
+    <string name="noise_masking_reset">Reset noise masking mode</string>
+</resources>

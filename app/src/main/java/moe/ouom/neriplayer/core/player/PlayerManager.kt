@@ -26,6 +26,9 @@ package moe.ouom.neriplayer.core.player
  */
 
 
+import moe.ouom.neriplayer.core.player.engine.BackgroundSound
+import moe.ouom.neriplayer.core.player.engine.BackgroundSoundConfig
+import moe.ouom.neriplayer.core.player.engine.BackgroundSoundMixState
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -1902,6 +1905,49 @@ object PlayerManager {
             ),
             persist = persist
         )
+    }
+
+    private val _backgroundSoundState = MutableStateFlow(BackgroundSoundConfig())
+    val backgroundSoundState: StateFlow<BackgroundSoundConfig> = _backgroundSoundState
+
+    fun backgroundSoundAvailable(): Boolean =
+        !playbackHighResolutionOutputEnabled && !usbExclusivePlaybackEnabled
+
+    internal fun loadBackgroundSoundSettings() {
+        val prefs = application.getSharedPreferences("background_sound", Context.MODE_PRIVATE)
+        val sound = runCatching {
+            BackgroundSound.valueOf(prefs.getString("sound", "PINK") ?: "PINK")
+        }.getOrDefault(BackgroundSound.PINK)
+        val config = BackgroundSoundConfig(
+            enabled = prefs.getBoolean("enabled", false),
+            sound = sound,
+            musicVolume = prefs.getFloat("music", 1f),
+            backgroundVolume = prefs.getFloat("background", 0.2f),
+        ).sanitized()
+        _backgroundSoundState.value = config
+        refreshBackgroundSoundMix()
+    }
+
+    internal fun refreshBackgroundSoundMix() {
+        BackgroundSoundMixState.config =
+            if (backgroundSoundAvailable()) backgroundSoundState.value
+            else BackgroundSoundConfig()
+    }
+
+    fun setBackgroundSound(config: BackgroundSoundConfig, persist: Boolean = true) {
+        ensureInitialized()
+        val normalized = config.sanitized()
+        _backgroundSoundState.value = normalized
+        refreshBackgroundSoundMix()
+        updateAudioOffloadPreferences("background_sound")
+        if (persist) {
+            application.getSharedPreferences("background_sound", Context.MODE_PRIVATE).edit()
+                .putBoolean("enabled", normalized.enabled)
+                .putString("sound", normalized.sound.name)
+                .putFloat("music", normalized.musicVolume)
+                .putFloat("background", normalized.backgroundVolume)
+                .apply()
+        }
     }
 
     fun resetPlaybackSoundSettings(persist: Boolean = true) {

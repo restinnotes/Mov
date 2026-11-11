@@ -100,6 +100,7 @@ internal fun MoreOptionsMainContent(
     onOpenSearch: () -> Unit,
     onOpenEditInfo: () -> Unit,
     onOpenPlaybackSound: () -> Unit,
+    onOpenNoiseMasking: () -> Unit,
     onOpenLyricBehavior: () -> Unit,
     onOpenFontSize: () -> Unit,
     onOpenBiliVideoSkip: () -> Unit,
@@ -122,6 +123,7 @@ internal fun MoreOptionsMainContent(
             onOpenSearch = onOpenSearch,
             onOpenEditInfo = onOpenEditInfo,
             onOpenPlaybackSound = onOpenPlaybackSound,
+            onOpenNoiseMasking = onOpenNoiseMasking,
             onShowQualitySwitch = onShowQualitySwitch
         )
         if (PlayerManager.isBiliTrack(originalSong) && !isLocalSong) {
@@ -177,6 +179,7 @@ private fun MetadataAndPlaybackActions(
     onOpenSearch: () -> Unit,
     onOpenEditInfo: () -> Unit,
     onOpenPlaybackSound: () -> Unit,
+    onOpenNoiseMasking: () -> Unit,
     onShowQualitySwitch: () -> Unit
 ) {
     ListItem(
@@ -207,6 +210,16 @@ private fun MetadataAndPlaybackActions(
         leadingContent = { Icon(Icons.Outlined.Tune, null) },
         supportingContent = { Text(stringResource(R.string.nowplaying_audio_effects_desc)) },
         modifier = Modifier.clickable(onClick = onOpenPlaybackSound)
+    )
+    val noiseMasking by PlayerManager.backgroundSoundState.collectAsStateWithLifecycle()
+    ListItem(
+        headlineContent = { Text(stringResource(R.string.noise_masking_title)) },
+        leadingContent = { Icon(Icons.Outlined.Headphones, null) },
+        supportingContent = {
+            Text(stringResource(if (noiseMasking.enabled && PlayerManager.backgroundSoundAvailable())
+                R.string.noise_masking_active else R.string.noise_masking_desc))
+        },
+        modifier = Modifier.clickable(onClick = onOpenNoiseMasking)
     )
 }
 
