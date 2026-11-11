@@ -13,6 +13,9 @@ import kotlinx.coroutines.withContext
 import moe.ouom.neriplayer.R
 import moe.ouom.neriplayer.core.api.bili.BiliClient
 import moe.ouom.neriplayer.core.api.bili.buildBiliPartSong
+import moe.ouom.neriplayer.core.api.bili.biliBvidOrNull
+import moe.ouom.neriplayer.core.classical.ClassicalLowPower
+import moe.ouom.neriplayer.core.classical.queue.expandBiliVideoPartsAfterCurrent
 import moe.ouom.neriplayer.core.logging.NPLogger
 import moe.ouom.neriplayer.core.lyricon.LyriconManager
 import moe.ouom.neriplayer.core.lyricon.mediaLyriconPositionMs
@@ -884,6 +887,17 @@ internal fun PlayerManager.playAtIndex(
     cancelGenericUrlPrefetchUnlessReusableForSong(song, reason = "play_at_index")
     playbackRequestToken += 1
     val requestToken = playbackRequestToken
+    // All entry points (including search and Bili playlists) complete the work.
+    // Use the player lifetime so navigating away cannot cancel the expansion.
+    if (ClassicalLowPower.enabled && song.biliBvidOrNull() != null &&
+        commandSource == PlaybackCommandSource.LOCAL && !isListenTogetherActive()
+    ) {
+        ioScope.launch {
+            if (requestToken == playbackRequestToken) {
+                expandBiliVideoPartsAfterCurrent(song.stableKey(), biliClient)
+            }
+        }
+    }
     BiliSponsorBlockPlaybackController.onPlaybackRequestStarted(song, requestToken)
     BiliVideoSkipPlaybackController.onPlaybackRequestStarted(song, requestToken)
     if (isBiliTrack(song) && !isListenTogetherActive()) {

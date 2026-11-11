@@ -123,7 +123,6 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import moe.ouom.neriplayer.core.api.bili.biliBvidOrNull
-import moe.ouom.neriplayer.core.classical.queue.expandBiliVideoPartsAfterCurrent
 import androidx.compose.material.icons.outlined.LibraryMusic
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -4023,9 +4022,6 @@ fun NowPlayingScreen(
                     onDismiss = { biliPartsSong = null },
                     onPlay = { part ->
                         PlayerManager.playSongAppendingToQueue(part)
-                        screenScope.launch {
-                            PlayerManager.expandBiliVideoPartsAfterCurrent(part.stableKey(), PlayerManager.biliClient)
-                        }
                         biliPartsSong = null
                     }
                 )

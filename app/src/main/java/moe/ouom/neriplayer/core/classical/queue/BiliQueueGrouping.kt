@@ -5,6 +5,8 @@ import moe.ouom.neriplayer.core.api.bili.biliBvidOrNull
 import moe.ouom.neriplayer.core.api.bili.biliCidOrNull
 import moe.ouom.neriplayer.core.api.bili.biliVideoTitleOrNull
 import moe.ouom.neriplayer.core.api.bili.buildBiliPartSong
+import moe.ouom.neriplayer.core.api.bili.buildBiliSongAlbum
+import moe.ouom.neriplayer.core.api.bili.selectBiliPlaybackPage
 import moe.ouom.neriplayer.core.player.PlayerManager
 import moe.ouom.neriplayer.core.player.persistence.mergeBiliPartsIntoQueue
 import kotlinx.coroutines.Dispatchers
@@ -51,15 +53,24 @@ fun mergeBiliVideoPartsAfterCurrent(
     queue: List<SongItem>,
     currentIndex: Int,
     tappedKey: String,
-    parts: List<SongItem>
+    parts: List<SongItem>,
+    resolvedRootCid: Long? = null
 ): BiliPartsMergeResult? {
     val tapped = queue.getOrNull(currentIndex) ?: return null
     if (tapped.stableKey() != tappedKey) return null
     if (parts.size <= 1) return null
     val tappedBvid = tapped.biliBvidOrNull() ?: return null
+    // Search results represent a whole video without a CID. Playback resolves
+    // those to the matching page (or P1); retain that item's stable identity so
+    // the active media remains valid while completing the rest of the work.
+    val rootPage = if (tapped.biliCidOrNull() == null) {
+        parts.firstOrNull { it.biliCidOrNull() == resolvedRootCid }
+            ?: parts.firstOrNull { it.name == tapped.name } ?: parts.first()
+    } else null
     val presentCids = queue.mapNotNullTo(HashSet()) { song ->
         if (song.biliBvidOrNull() == tappedBvid) song.biliCidOrNull() else null
     }
+    rootPage?.biliCidOrNull()?.let(presentCids::add)
     val missing = parts.filter { part ->
         val cid = part.biliCidOrNull()
         cid == null || cid !in presentCids
@@ -70,8 +81,19 @@ fun mergeBiliVideoPartsAfterCurrent(
     val firstVideoIndex = queue.indexOfFirst { it.biliBvidOrNull() == tappedBvid }
     val remaining = queue.filter { it.biliBvidOrNull() == tappedBvid }.toMutableList()
     val orderedParts = parts.map { part ->
-        val existingIndex = remaining.indexOfFirst { it.biliCidOrNull() == part.biliCidOrNull() }
-        if (existingIndex >= 0) remaining.removeAt(existingIndex).copy(album = part.album) else part
+        if (part === rootPage) {
+            remaining.remove(tapped)
+            tapped.copy(
+                durationMs = part.durationMs,
+                album = buildBiliSongAlbum(
+                    bvid = tappedBvid,
+                    videoTitle = part.biliVideoTitleOrNull()
+                )
+            )
+        } else {
+            val existingIndex = remaining.indexOfFirst { it.biliCidOrNull() == part.biliCidOrNull() }
+            if (existingIndex >= 0) remaining.removeAt(existingIndex).copy(album = part.album) else part
+        }
     } + remaining
     val merged = queue.take(firstVideoIndex) + orderedParts +
         queue.drop(firstVideoIndex).filterNot { it.biliBvidOrNull() == tappedBvid }
@@ -237,6 +259,9 @@ internal suspend fun PlayerManager.expandBiliVideoPartsAfterCurrent(
     val parts = buildBiliVideoPartSongs(info, tapped.coverUrl.orEmpty())
     return withContext(Dispatchers.Main.immediate) {
         if (currentSongFlow.value?.stableKey() != tappedKey) false
-        else mergeBiliPartsIntoQueue(tappedKey, parts)
+        else mergeBiliPartsIntoQueue(
+            tappedKey, parts,
+            resolvedRootCid = selectBiliPlaybackPage(info.pages, tapped.name)?.cid
+        )
     }
 }

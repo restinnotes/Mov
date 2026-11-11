@@ -1046,11 +1046,15 @@ internal fun PlayerManager.playSongAppendingToQueueImpl(
 }
 
 /** Extend the logical queue while leaving the active media and playback position intact. */
-internal fun PlayerManager.mergeBiliPartsIntoQueue(tappedKey: String, parts: List<SongItem>): Boolean {
+internal fun PlayerManager.mergeBiliPartsIntoQueue(
+    tappedKey: String,
+    parts: List<SongItem>,
+    resolvedRootCid: Long? = null
+): Boolean {
     ensureInitialized()
     if (!initialized || shouldBlockLocalRoomControl(PlaybackCommandSource.LOCAL)) return false
     val merged = moe.ouom.neriplayer.core.classical.queue.mergeBiliVideoPartsAfterCurrent(
-        currentPlaylist, currentIndex, tappedKey, parts
+        currentPlaylist, currentIndex, tappedKey, parts, resolvedRootCid
     ) ?: return false
     currentPlaylist = merged.queue
     currentIndex = merged.currentIndex

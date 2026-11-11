@@ -163,6 +163,64 @@ class BiliQueueGroupingTest {
     }
 
     @Test
+    fun `search video without cid expands without duplicating P1 or losing current index`() {
+        val tapped = biliPart("BV1a", 1L, name = "Video").copy(
+            album = buildBiliSongAlbum(bvid = "BV1a"),
+            subAudioId = null,
+            durationMs = 180_000L
+        )
+        val before = local("Before")
+        val after = local("After")
+        val parts = buildBiliVideoPartSongs(info("BV1a", listOf(1L, 2L, 3L)), "")
+        val result = mergeBiliVideoPartsAfterCurrent(
+            listOf(before, tapped, after), 1, tapped.stableKey(), parts
+        )!!
+
+        assertEquals(listOf("Before", "Video", "P2", "P3", "After"), result.queue.map { it.name })
+        assertEquals(before, result.queue.first())
+        assertEquals(after, result.queue.last())
+        assertEquals(60_000L, result.queue[1].durationMs)
+        assertEquals(parts[0].biliVideoTitleOrNull(), result.queue[1].biliVideoTitleOrNull())
+        assertEquals(1, result.currentIndex)
+        assertEquals(tapped.stableKey(), result.queue[result.currentIndex].stableKey())
+        assertNull(mergeBiliVideoPartsAfterCurrent(
+            result.queue, result.currentIndex, tapped.stableKey(), parts
+        ))
+    }
+
+    @Test
+    fun `video without cid matching a middle page keeps that page playing`() {
+        val tapped = biliPart("BV1a", 2L, name = "P2").copy(
+            album = buildBiliSongAlbum(bvid = "BV1a"),
+            subAudioId = null
+        )
+        val parts = buildBiliVideoPartSongs(info("BV1a", listOf(1L, 2L, 3L)), "")
+        val result = mergeBiliVideoPartsAfterCurrent(
+            listOf(tapped), 0, tapped.stableKey(), parts
+        )!!
+
+        assertEquals(listOf("P1", "P2", "P3"), result.queue.map { it.name })
+        assertEquals(tapped.stableKey(), result.queue[1].stableKey())
+        assertEquals(1, result.currentIndex)
+    }
+
+    @Test
+    fun `resolved root cid wins over parsed part titles`() {
+        val tapped = biliPart("BV1a", 2L, name = "2. Movement - Composer").copy(
+            album = buildBiliSongAlbum(bvid = "BV1a"),
+            subAudioId = null
+        )
+        val parts = buildBiliVideoPartSongs(info("BV1a", listOf(1L, 2L, 3L)), "")
+        val result = mergeBiliVideoPartsAfterCurrent(
+            listOf(tapped), 0, tapped.stableKey(), parts, resolvedRootCid = 2L
+        )!!
+
+        assertEquals(listOf("P1", tapped.name, "P3"), result.queue.map { it.name })
+        assertEquals(tapped.stableKey(), result.queue[1].stableKey())
+        assertEquals(1, result.currentIndex)
+    }
+
+    @Test
     fun `merge inserts missing parts after current`() {
         val tapped = biliPart("BV1a", 1L)
         val queue = listOf(local("前"), tapped, local("后"))
